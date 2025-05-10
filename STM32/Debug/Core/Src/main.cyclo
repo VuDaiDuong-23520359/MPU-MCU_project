@@ -1,0 +1,10 @@
+../Core/Src/main.c:71:6:HAL_TIM_PWM_PulseFinishCallback	1
+../Core/Src/main.c:76:6:Set_LED	1
+../Core/Src/main.c:84:6:Set_Brightness	4
+../Core/Src/main.c:104:6:WS2812_Send	6
+../Core/Src/main.c:148:5:main	3
+../Core/Src/main.c:221:6:SystemClock_Config	3
+../Core/Src/main.c:267:13:MX_TIM1_Init	7
+../Core/Src/main.c:340:13:MX_DMA_Init	1
+../Core/Src/main.c:358:13:MX_GPIO_Init	1
+../Core/Src/main.c:393:6:Error_Handler	1
