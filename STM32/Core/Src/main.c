@@ -31,7 +31,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define MAX_LED 8
+#define MAX_LED 54
 #define USE_BRIGHTNESS 1
 #define PI 3.14159265
 
@@ -69,9 +69,11 @@ static void MX_TIM1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-void HAL_TIM_PWM_PulseFinishCallback(TIM_HandleTypeDef *htim){
-	HAL_TIMEx_PWMN_Stop_DMA(&htim1, TIM_CHANNEL_1);
-	datasentflag = 1;
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
+    if (htim == &htim1) {
+        HAL_TIM_PWM_Stop_DMA(&htim1, TIM_CHANNEL_1);
+        datasentflag = 1;
+    }
 }
 
 void Set_LED (int LEDnum, int Red, int Green, int Blue)
@@ -211,7 +213,7 @@ int main(void)
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
-  Set_LED(0, 255, 0, 0);
+//  Set_LED(0, 255, 0, 0);
 //  Set_LED(1, 0, 255, 0);
 //  Set_LED(2, 0, 0, 255);
 //
@@ -222,34 +224,41 @@ int main(void)
 //  Set_LED(6, 47, 38, 77);
 //
 //  Set_LED(7, 255, 200, 0);
-  Set_Brightness(20);
-
-  WS2812_Send();
+//  Set_Brightness(20);
+//
+//  WS2812_Send();
   /* USER CODE END 2 */
 
+//  for (int i = 0; i< 8; i++){
+//	  Set_LED(i, 255, 45, 0);
+//	  	  Set_Brightness(20);
+//	  	  WS2812_Send();
+//	  	  HAL_Delay(500);
+////
+//
+//
+//  }
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  rainbow_effect();
-	  HAL_Delay(30);
-//	  for (int i=0; i<46; i++)
-//	  {
-//		  Set_Brightness(i);
-//		  WS2812_Send();
-//		  HAL_Delay (50);
-//	  }
-//
-//	  for (int i=45; i>=0; i--)
-//	  {
-//		  Set_Brightness(i);
-//		  WS2812_Send();
-//		  HAL_Delay (50);
-//	  }
-    /* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
-  }
+//	  for (int i = 0; i < 54; i++){
+//		  Set_LED(i, 255, 45, 0);
+//		  Set_Brightness(20);
+//		  WS2812_Send();
+//		  HAL_Delay(500);
+//	  }
+//	  for (int i = 0; i < 54; i++){
+//	  		  Set_LED(i, 0, 0, 0);
+//	  		  Set_Brightness(20);
+//	  		  WS2812_Send();
+//	  		  HAL_Delay(500);
+//	  }
+	  rainbow_effect();
+	  HAL_Delay(500);
+
+  } .
   /* USER CODE END 3 */
 }
 
