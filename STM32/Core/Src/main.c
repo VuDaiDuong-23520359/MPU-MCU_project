@@ -32,9 +32,10 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define MAX_LED 54
+#define MAX_BRIGHTNESS 45
+#define NORMAL_BRIGHTNESS 20
 #define USE_BRIGHTNESS 1
 #define PI 3.14159265
-
 
 /* USER CODE END PD */
 
@@ -55,6 +56,11 @@ int datasentflag = 0;
 uint16_t pwmData[(24 * MAX_LED)+50];
 uint16_t  effStep = 0;
 
+const int blockOn = 6;
+const int blockOff = 8;
+int patternLength = blockOn + blockOff;
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -68,13 +74,13 @@ static void MX_TIM1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
     if (htim == &htim1) {
         HAL_TIM_PWM_Stop_DMA(&htim1, TIM_CHANNEL_1);
         datasentflag = 1;
     }
 }
+
 
 void Set_LED (int LEDnum, int Red, int Green, int Blue)
 {
@@ -143,38 +149,274 @@ void WS2812_Send (void)
 	datasentflag = 0;
 }
 
-uint8_t rainbow_effect() {
-    // Strip ID: 0 - Effect: Rainbow - LEDS: 54
-    // Steps: 60 - Delay: 22
-    // Colors: 3 (255.0.0, 0.255.0, 0.0.255)
-    // Options: rainbowlen=50, toLeft=false,
-  //if(millis() - strip_0.effStart < 22 * (strip_0.effStep)) return 0x00;
-  float factor1, factor2;
-  uint16_t ind;
+//effect
 
-  for(uint16_t j=0;j<54;j++) {
-    ind = 60 - (int16_t)(effStep - j * 1.2) % 60;
-    switch((int)((ind % 60) / 20)) {
-      case 0: factor1 = 1.0 - ((float)(ind % 60 - 0 * 20) / 20);
-              factor2 = (float)((int)(ind - 0) % 60) / 20;
-              Set_LED(j, 255 * factor1 + 0 * factor2, 0 * factor1 + 255 * factor2, 0 * factor1 + 0 * factor2);
-              WS2812_Send();
-              break;
-      case 1: factor1 = 1.0 - ((float)(ind % 60 - 1 * 20) / 20);
-              factor2 = (float)((int)(ind - 20) % 60) / 20;
-              Set_LED(j, 0 * factor1 + 0 * factor2, 255 * factor1 + 0 * factor2, 0 * factor1 + 255 * factor2);
-              WS2812_Send();
-              break;
-      case 2: factor1 = 1.0 - ((float)(ind % 60 - 2 * 20) / 20);
-              factor2 = (float)((int)(ind - 40) % 60) / 20;
-              Set_LED(j, 0 * factor1 + 255 * factor2, 0 * factor1 + 0 * factor2, 255 * factor1 + 0 * factor2);
-              WS2812_Send();
-              break;
+uint8_t rainbow_effect() {
+    float factor1, factor2;
+    uint16_t ind;
+
+    for (uint16_t j = 0; j < MAX_LED; j++) {
+        ind = 60 - (int16_t)(effStep - j * 1.2) % 60;
+        switch ((int)((ind % 60) / 20)) {
+            case 0:
+                factor1 = 1.0 - ((float)(ind % 60 - 0 * 20) / 20);
+                factor2 = (float)((int)(ind - 0) % 60) / 20;
+                Set_LED(j, 255 * factor1 + 0 * factor2, 0 * factor1 + 255 * factor2, 0 * factor1 + 0 * factor2);
+                break;
+            case 1:
+                factor1 = 1.0 - ((float)(ind % 60 - 1 * 20) / 20);
+                factor2 = (float)((int)(ind - 20) % 60) / 20;
+                Set_LED(j, 0 * factor1 + 0 * factor2, 255 * factor1 + 0 * factor2, 0 * factor1 + 255 * factor2);
+                break;
+            case 2:
+                factor1 = 1.0 - ((float)(ind % 60 - 2 * 20) / 20);
+                factor2 = (float)((int)(ind - 40) % 60) / 20;
+                Set_LED(j, 0 * factor1 + 255 * factor2, 0 * factor1 + 0 * factor2, 255 * factor1 + 0 * factor2);
+                break;
+        }
     }
-  }
-  if(effStep >= 60) {effStep = 0; return 0x03; }
-  else effStep++;
-  return 0x01;
+
+    Set_Brightness(NORMAL_BRIGHTNESS);
+    WS2812_Send();
+
+    effStep++;
+    if (effStep >= 60) {
+        effStep = 0;
+        return 0x03;
+    }
+    return 0x01;
+}
+
+
+void On_off_single_led(void){
+	for (int i = 0; i < MAX_LED; i++)
+	{
+		  Set_LED(i, 255, 0, 0);
+		  Set_Brightness(NORMAL_BRIGHTNESS);
+		  WS2812_Send();
+		  HAL_Delay (30);
+	}
+	for (int i = MAX_LED - 1; i >= 0; i--)
+	{
+		  Set_LED(i, 0, 0, 0);
+		  Set_Brightness(NORMAL_BRIGHTNESS);
+		  WS2812_Send();
+		  HAL_Delay(30);
+	}
+}
+
+void Brightness_Color_Fade_Effect(void)
+{
+    int brightness;
+
+    // Fade in
+    for (brightness = 0; brightness <= NORMAL_BRIGHTNESS; brightness++)
+    {
+        uint8_t red = (brightness <= 15) ? (brightness * 17) : (brightness <= 30 ? (45 - brightness) * 17 : 0);
+        uint8_t green = (brightness <= 15) ? 0 : (brightness <= 30 ? (brightness - 15) * 17 : (45 - brightness) * 17);
+        uint8_t blue = (brightness >= 30) ? (brightness - 30) * 17 : 0;
+
+        for (int i = 0; i < MAX_LED; i++)
+            Set_LED(i, red, green, blue);
+
+        Set_Brightness(brightness);
+        WS2812_Send();
+        HAL_Delay(30);
+    }
+
+    // Fade out
+    for (brightness = NORMAL_BRIGHTNESS; brightness >= 0; brightness--)
+    {
+        uint8_t red = (brightness <= 15) ? (brightness * 17) : (brightness <= 30 ? (45 - brightness) * 17 : 0);
+        uint8_t green = (brightness <= 15) ? 0 : (brightness <= 30 ? (brightness - 15) * 17 : (45 - brightness) * 17);
+        uint8_t blue = (brightness >= 30) ? (brightness - 30) * 17 : 0;
+
+        for (int i = 0; i < MAX_LED; i++)
+            Set_LED(i, red, green, blue);
+
+        Set_Brightness(brightness);
+        WS2812_Send();
+        HAL_Delay(30);
+    }
+}
+
+void On_off_From2Side(void) {
+    int half = MAX_LED / 2;
+
+    // Turn on from both sides
+    for (int i = 0; i < half; i++) {
+        Set_LED(i, 255, 0, 0);                 // Left half: Red
+        Set_LED(MAX_LED - 1 - i, 0, 0, 255);   // Right half: Blue
+        Set_Brightness(NORMAL_BRIGHTNESS);
+        WS2812_Send();
+        HAL_Delay(30);
+    }
+
+    // Swap colors for both sides
+    for (int i = half - 1; i >= 0; i--) {
+        Set_LED(i, 0, 0, 255);                 // Left: Blue
+        Set_LED(MAX_LED - i + 1, 255, 0, 0);   // Right: Red
+        Set_Brightness(NORMAL_BRIGHTNESS);
+        WS2812_Send();
+        HAL_Delay(30);
+    }
+
+    // Turn off from both sides
+    for (int i = 0; i < half; i++) {
+        Set_LED(i, 0, 0, 0);
+        Set_LED(MAX_LED - 1 - i, 0, 0, 0);
+        Set_Brightness(NORMAL_BRIGHTNESS);
+        WS2812_Send();
+        HAL_Delay(30);
+    }
+}
+
+void Blink(void){
+	for (int i = 0; i < MAX_LED; i++){
+		Set_LED(i, 180, 0, 180);
+		Set_Brightness(20);
+	}
+	WS2812_Send();
+	HAL_Delay(0.1);
+	for (int i = 0; i < MAX_LED; i++){
+		Set_LED(i, 0, 0, 0);
+		Set_Brightness(20);
+	}
+	WS2812_Send();
+	HAL_Delay(0.1);
+}
+
+void Blink_Groups_Parallel(void) {
+    for (int i = 0; i <= 5; i++){
+    	for (int j = i; j < MAX_LED; j += 6){
+    		Set_LED(j, 180, 0, 180);
+    		Set_Brightness(20);
+    	}
+    	WS2812_Send();
+    	HAL_Delay(30);
+
+    	for (int k = i; k < MAX_LED; k += 6){
+    		Set_LED(k, 0, 0, 0);
+    		Set_Brightness(20);
+    	}
+    	WS2812_Send();
+    	HAL_Delay(30);
+    }
+}
+
+void r7LEDs_rainbow(void) {
+    uint8_t colors[7][3] = {
+        {255, 0, 0},     // Red
+        {255, 127, 0},   // Orange
+        {255, 255, 0},   // Yellow
+        {0, 255, 0},     // Green
+        {0, 0, 255},     // Blue
+        {75, 0, 130},    // Indigo
+        {148, 0, 211}    // Violet
+    };
+
+    static int head = 0;  // Red LED index (moves forward every call)
+
+    // --- Tail cleanup ---
+    // Find the LED that just moved out of the rainbow window
+    int cleanup_idx = (head - 7 + MAX_LED) % MAX_LED;
+    Set_LED(cleanup_idx, 0, 0, 0);
+
+    // --- Draw current rainbow ---
+    for (int j = 0; j < 7; j++) {
+        int pos = (head - j + MAX_LED) % MAX_LED;
+        Set_LED(pos, colors[j][0], colors[j][1], colors[j][2]);
+    }
+
+    Set_Brightness(20);
+    WS2812_Send();
+    HAL_Delay(100);
+
+    head = (head + 1) % MAX_LED;
+}
+
+void r7LEDs_rainbow_reverse(void) {
+    static uint8_t colors[7][3] = {
+        {255, 0, 0},     // Red
+        {255, 127, 0},   // Orange
+        {255, 255, 0},   // Yellow
+        {0, 255, 0},     // Green
+        {0, 0, 255},     // Blue
+        {75, 0, 130},    // Indigo
+        {148, 0, 211}    // Violet
+    };
+
+    static int head = 0;
+    static int direction = 1;     // 1: forward, -1: backward
+    static int waiting = 0;       // flag: waiting for tail to finish
+    static int trail_index = 0;   // index for clearing trail
+
+    // If in waiting mode, only clear trail one step at a time
+    if (waiting) {
+        int idx;
+        if (direction == 1) {
+            // Forward: tail was last 6 LEDs before head
+            idx = head - 7 + trail_index;
+        } else {
+            // Backward: tail was next 6 LEDs after head
+            idx = head + 7 - trail_index;
+        }
+
+        if (idx >= 0 && idx < MAX_LED) {
+            Set_LED(idx, 0, 0, 0);  // Turn off tail
+        }
+
+        trail_index++;
+        WS2812_Send();
+        HAL_Delay(20);
+
+        if (trail_index >= 7) {
+            // Done clearing trail
+            waiting = 0;
+            trail_index = 0;
+            direction *= -1;
+            head += direction;  // Start next direction
+        }
+        return;
+    }
+
+    // Clear previous tail
+    int clear_idx = (direction == 1) ? head - 7 : head + 7;
+    if (clear_idx >= 0 && clear_idx < MAX_LED) {
+        Set_LED(clear_idx, 0, 0, 0);
+    }
+
+    // Set current rainbow
+    for (int j = 0; j < 7; j++) {
+        int idx = head - j * direction;
+        if (idx >= 0 && idx < MAX_LED) {
+            Set_LED(idx, colors[j][0], colors[j][1], colors[j][2]);
+        }
+    }
+
+    Set_Brightness(20);
+    WS2812_Send();
+    HAL_Delay(100);
+
+    // Move red head
+    head += direction;
+
+    // Start waiting when red reaches out of bounds
+    if ((direction == 1 && head >= MAX_LED + 7) ||
+        (direction == -1 && head < -7)) {
+        waiting = 1;
+        trail_index = 0;
+        head -= direction;  // stay at edge while waiting
+    }
+}
+
+
+void Turn_off(void){
+	for (int i = 0; i < MAX_LED; i++){
+		Set_LED(i, 0, 0, 0);
+	}
+	Set_Brightness(20);
+	WS2812_Send();
 }
 
 
@@ -213,52 +455,18 @@ int main(void)
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
-//  Set_LED(0, 255, 0, 0);
-//  Set_LED(1, 0, 255, 0);
-//  Set_LED(2, 0, 0, 255);
-//
-//  Set_LED(3, 46, 89, 128);
-//
-//  Set_LED(4, 156, 233, 100);
-//  Set_LED(5, 102, 0, 235);
-//  Set_LED(6, 47, 38, 77);
-//
-//  Set_LED(7, 255, 200, 0);
-//  Set_Brightness(20);
-//
-//  WS2812_Send();
+
   /* USER CODE END 2 */
 
-//  for (int i = 0; i< 8; i++){
-//	  Set_LED(i, 255, 45, 0);
-//	  	  Set_Brightness(20);
-//	  	  WS2812_Send();
-//	  	  HAL_Delay(500);
-////
-//
-//
-//  }
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	 r7LEDs_rainbow_reverse();
+    /* USER CODE END WHILE */
 
-//	  for (int i = 0; i < 54; i++){
-//		  Set_LED(i, 255, 45, 0);
-//		  Set_Brightness(20);
-//		  WS2812_Send();
-//		  HAL_Delay(500);
-//	  }
-//	  for (int i = 0; i < 54; i++){
-//	  		  Set_LED(i, 0, 0, 0);
-//	  		  Set_Brightness(20);
-//	  		  WS2812_Send();
-//	  		  HAL_Delay(500);
-//	  }
-	  rainbow_effect();
-	  HAL_Delay(500);
-
-  } .
+    /* USER CODE BEGIN 3 */
+  }
   /* USER CODE END 3 */
 }
 
