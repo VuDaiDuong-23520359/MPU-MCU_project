@@ -150,6 +150,11 @@ void WS2812_Send (void)
 }
 
 //effect
+void Set_LEDs_color_at_once(int start, int end, int step, int r, int g, int b){
+	for (int pos = start; pos < end; pos += step){
+		Set_LED(pos, r, g, b);		// purple
+	}
+}
 
 uint8_t rainbow_effect() {
     float factor1, factor2;
@@ -188,7 +193,7 @@ uint8_t rainbow_effect() {
 }
 
 
-void On_off_single_led(void){
+void On_off_single_led_ltor(void){
 	for (int i = 0; i < MAX_LED; i++)
 	{
 		  Set_LED(i, 255, 0, 0);
@@ -271,36 +276,30 @@ void On_off_From2Side(void) {
     }
 }
 
-void Blink(void){
-	for (int i = 0; i < MAX_LED; i++){
-		Set_LED(i, 180, 0, 180);
-		Set_Brightness(20);
-	}
+void Blink_all(void){
+	Set_LEDs_color_at_once(0, MAX_LED, 1, 180, 0, 180);
+	Set_Brightness(NORMAL_BRIGHTNESS);
 	WS2812_Send();
-	HAL_Delay(0.1);
-	for (int i = 0; i < MAX_LED; i++){
-		Set_LED(i, 0, 0, 0);
-		Set_Brightness(20);
-	}
+	HAL_Delay(30);
+
+	Set_LEDs_color_at_once(0, MAX_LED, 1, 0, 0, 0);
+	Set_Brightness(NORMAL_BRIGHTNESS);
 	WS2812_Send();
-	HAL_Delay(0.1);
+	HAL_Delay(30);
 }
 
-void Blink_Groups_Parallel(void) {
+void On_Off_Groups_Parallel(void) {
     for (int i = 0; i <= 5; i++){
-    	for (int j = i; j < MAX_LED; j += 6){
-    		Set_LED(j, 180, 0, 180);
-    		Set_Brightness(20);
-    	}
+    	Set_LEDs_color_at_once(i, MAX_LED, 6, 180, 0, 180);
+    	Set_Brightness(NORMAL_BRIGHTNESS);
     	WS2812_Send();
-    	HAL_Delay(30);
-
-    	for (int k = i; k < MAX_LED; k += 6){
-    		Set_LED(k, 0, 0, 0);
-    		Set_Brightness(20);
-    	}
+    	HAL_Delay(50);
+    }
+    for (int i = 0; i <= 5; i++){
+    	Set_LEDs_color_at_once(i, MAX_LED, 6, 0, 0, 0);
+    	Set_Brightness(NORMAL_BRIGHTNESS);
     	WS2812_Send();
-    	HAL_Delay(30);
+       	HAL_Delay(50);
     }
 }
 
@@ -328,7 +327,7 @@ void r7LEDs_rainbow(void) {
         Set_LED(pos, colors[j][0], colors[j][1], colors[j][2]);
     }
 
-    Set_Brightness(20);
+    Set_Brightness(NORMAL_BRIGHTNESS);
     WS2812_Send();
     HAL_Delay(100);
 
@@ -394,7 +393,7 @@ void r7LEDs_rainbow_reverse(void) {
         }
     }
 
-    Set_Brightness(20);
+    Set_Brightness(NORMAL_BRIGHTNESS);
     WS2812_Send();
     HAL_Delay(100);
 
@@ -410,15 +409,36 @@ void r7LEDs_rainbow_reverse(void) {
     }
 }
 
+void Blink_Groups_Parallel(void) {
+    for (int i = 0; i <= 5; i++){
+    	Set_LEDs_color_at_once(i, MAX_LED, 6, 180, 0, 180);
+    	Set_Brightness(NORMAL_BRIGHTNESS);
+    	WS2812_Send();
+    	HAL_Delay(50);
 
-void Turn_off(void){
-	for (int i = 0; i < MAX_LED; i++){
-		Set_LED(i, 0, 0, 0);
-	}
-	Set_Brightness(20);
-	WS2812_Send();
+    	Set_LEDs_color_at_once(i, MAX_LED, 6, 0, 0, 0);
+    	Set_Brightness(NORMAL_BRIGHTNESS);
+    	WS2812_Send();
+    }
 }
 
+void Blink_Random_per6LEDs(void){
+	const int group_count = 9;
+	const int group_size = 6;
+
+	Set_LEDs_color_at_once(0, MAX_LED, 1, 0, 0, 0);
+	Set_Brightness(NORMAL_BRIGHTNESS);
+	WS2812_Send();
+
+    for (int i = 0; i < group_count; i++) {
+        int start = i * group_size;
+        int random_value = start + (rand() % group_size);
+        Set_LED(random_value, 180, 0, 180);
+    }
+    Set_Brightness(NORMAL_BRIGHTNESS);
+    WS2812_Send();
+    HAL_Delay(30);
+}
 
 /* USER CODE END 0 */
 
@@ -430,7 +450,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  srand(time(NULL));
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
