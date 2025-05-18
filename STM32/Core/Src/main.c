@@ -22,6 +22,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "math.h"
+#include "time.h"
+#include "stdlib.h"
+#include "stdbool.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,6 +62,16 @@ uint16_t  effStep = 0;
 const int blockOn = 6;
 const int blockOff = 8;
 int patternLength = blockOn + blockOff;
+
+uint8_t colors[7][3] = {
+    {255, 0, 0},     // Red
+    {255, 127, 0},   // Orange
+    {255, 255, 0},   // Yellow
+    {0, 255, 0},     // Green
+    {0, 0, 255},     // Blue
+    {75, 0, 130},    // Indigo
+    {148, 0, 211}    // Violet
+};
 
 
 /* USER CODE END PV */
@@ -156,7 +169,19 @@ void Set_LEDs_color_at_once(int start, int end, int step, int r, int g, int b){
 	}
 }
 
-uint8_t rainbow_effect() {
+void Turn_on_all_at_once(int r, int g, int b){
+	Set_LEDs_color_at_once(0, MAX_LED, 1, r, g, b);
+	Set_Brightness(NORMAL_BRIGHTNESS);
+	WS2812_Send();
+}
+
+void Turn_off_all_at_once(void){
+	Set_LEDs_color_at_once(0, MAX_LED, 1, 0, 0, 0);
+	Set_Brightness(NORMAL_BRIGHTNESS);
+	WS2812_Send();
+}
+
+uint8_t rainbow_effect() {		// Must have Delay after call
     float factor1, factor2;
     uint16_t ind;
 
@@ -210,40 +235,65 @@ void On_off_single_led_ltor(void){
 	}
 }
 
+void HSV_to_RGB(float h, float s, float v, uint8_t* r, uint8_t* g, uint8_t* b)
+{
+    float c = v * s;
+    float x = c * (1 - fabsf(fmodf(h / 60.0f, 2) - 1));
+    float m = v - c;
+
+    float r1, g1, b1;
+
+    if (h < 60)      { r1 = c; g1 = x; b1 = 0; }
+    else if (h < 120){ r1 = x; g1 = c; b1 = 0; }
+    else if (h < 180){ r1 = 0; g1 = c; b1 = x; }
+    else if (h < 240){ r1 = 0; g1 = x; b1 = c; }
+    else if (h < 300){ r1 = x; g1 = 0; b1 = c; }
+    else             { r1 = c; g1 = 0; b1 = x; }
+
+    *r = (uint8_t)((r1 + m) * 255);
+    *g = (uint8_t)((g1 + m) * 255);
+    *b = (uint8_t)((b1 + m) * 255);
+}
+
 void Brightness_Color_Fade_Effect(void)
 {
-    int brightness;
+    uint8_t red, green, blue;
+    static float hue = 0.0f;
 
     // Fade in
-    for (brightness = 0; brightness <= NORMAL_BRIGHTNESS; brightness++)
+    for (int brightness = 0; brightness <= NORMAL_BRIGHTNESS; brightness++)
     {
-        uint8_t red = (brightness <= 15) ? (brightness * 17) : (brightness <= 30 ? (45 - brightness) * 17 : 0);
-        uint8_t green = (brightness <= 15) ? 0 : (brightness <= 30 ? (brightness - 15) * 17 : (45 - brightness) * 17);
-        uint8_t blue = (brightness >= 30) ? (brightness - 30) * 17 : 0;
+        float v = brightness / (float)NORMAL_BRIGHTNESS;
+        HSV_to_RGB(hue, 1.0f, v, &red, &green, &blue);
 
         for (int i = 0; i < MAX_LED; i++)
             Set_LED(i, red, green, blue);
 
         Set_Brightness(brightness);
         WS2812_Send();
-        HAL_Delay(30);
+        HAL_Delay(40);
     }
 
     // Fade out
-    for (brightness = NORMAL_BRIGHTNESS; brightness >= 0; brightness--)
+    for (int brightness = NORMAL_BRIGHTNESS; brightness >= 0; brightness--)
     {
-        uint8_t red = (brightness <= 15) ? (brightness * 17) : (brightness <= 30 ? (45 - brightness) * 17 : 0);
-        uint8_t green = (brightness <= 15) ? 0 : (brightness <= 30 ? (brightness - 15) * 17 : (45 - brightness) * 17);
-        uint8_t blue = (brightness >= 30) ? (brightness - 30) * 17 : 0;
+        float v = brightness / (float)NORMAL_BRIGHTNESS;
+        HSV_to_RGB(hue, 1.0f, v, &red, &green, &blue);
 
         for (int i = 0; i < MAX_LED; i++)
             Set_LED(i, red, green, blue);
 
         Set_Brightness(brightness);
         WS2812_Send();
-        HAL_Delay(30);
+        HAL_Delay(40);
     }
+
+    // Move to next hue (e.g. 30 degrees ahead)
+    hue += 30.0f;
+    if (hue >= 360.0f)
+        hue = 0.0f;
 }
+
 
 void On_off_From2Side(void) {
     int half = MAX_LED / 2;
@@ -277,14 +327,10 @@ void On_off_From2Side(void) {
 }
 
 void Blink_all(void){
-	Set_LEDs_color_at_once(0, MAX_LED, 1, 180, 0, 180);
-	Set_Brightness(NORMAL_BRIGHTNESS);
-	WS2812_Send();
+	Turn_on_all_at_once(180, 0, 180);
 	HAL_Delay(30);
 
-	Set_LEDs_color_at_once(0, MAX_LED, 1, 0, 0, 0);
-	Set_Brightness(NORMAL_BRIGHTNESS);
-	WS2812_Send();
+	Turn_off_all_at_once();
 	HAL_Delay(30);
 }
 
@@ -304,16 +350,6 @@ void On_Off_Groups_Parallel(void) {
 }
 
 void r7LEDs_rainbow(void) {
-    uint8_t colors[7][3] = {
-        {255, 0, 0},     // Red
-        {255, 127, 0},   // Orange
-        {255, 255, 0},   // Yellow
-        {0, 255, 0},     // Green
-        {0, 0, 255},     // Blue
-        {75, 0, 130},    // Indigo
-        {148, 0, 211}    // Violet
-    };
-
     static int head = 0;  // Red LED index (moves forward every call)
 
     // --- Tail cleanup ---
@@ -329,7 +365,7 @@ void r7LEDs_rainbow(void) {
 
     Set_Brightness(NORMAL_BRIGHTNESS);
     WS2812_Send();
-    HAL_Delay(100);
+    HAL_Delay(30);
 
     head = (head + 1) % MAX_LED;
 }
@@ -395,7 +431,7 @@ void r7LEDs_rainbow_reverse(void) {
 
     Set_Brightness(NORMAL_BRIGHTNESS);
     WS2812_Send();
-    HAL_Delay(100);
+    HAL_Delay(30);
 
     // Move red head
     head += direction;
@@ -426,9 +462,7 @@ void Blink_Random_per6LEDs(void){
 	const int group_count = 9;
 	const int group_size = 6;
 
-	Set_LEDs_color_at_once(0, MAX_LED, 1, 0, 0, 0);
-	Set_Brightness(NORMAL_BRIGHTNESS);
-	WS2812_Send();
+	Turn_off_all_at_once();
 
     for (int i = 0; i < group_count; i++) {
         int start = i * group_size;
@@ -438,6 +472,73 @@ void Blink_Random_per6LEDs(void){
     Set_Brightness(NORMAL_BRIGHTNESS);
     WS2812_Send();
     HAL_Delay(30);
+}
+
+void r7LEDs_rainbow_phased(void) {
+    static int current_color = 0;         // Index in the rainbow
+    static int head = -6;                 // LED position (start from -6 to grow the trail)
+    const int TRAIL_LEN = 7;
+
+    // Clear the LED that just moved out of the trail
+    int cleanup_idx = head - TRAIL_LEN;
+    if (cleanup_idx >= 0 && cleanup_idx < MAX_LED) {
+        Set_LED(cleanup_idx, 0, 0, 0);
+    }
+
+    // Draw the trail (from head to head - 6)
+    for (int j = 0; j < TRAIL_LEN; j++) {
+        int pos = head - j;
+        if (pos >= 0 && pos < MAX_LED) {
+            uint8_t r = (colors[current_color][0] * (TRAIL_LEN - j)) / TRAIL_LEN;
+            uint8_t g = (colors[current_color][1] * (TRAIL_LEN - j)) / TRAIL_LEN;
+            uint8_t b = (colors[current_color][2] * (TRAIL_LEN - j)) / TRAIL_LEN;
+            Set_LED(pos, r, g, b);
+        }
+    }
+
+    Set_Brightness(NORMAL_BRIGHTNESS);
+    WS2812_Send();
+    HAL_Delay(30);
+
+    head++;
+
+    // When the trail has fully left the strip
+    if (head - TRAIL_LEN >= MAX_LED) {
+        head = -6;  // Reset head for the next color
+        current_color++;
+
+        if (current_color >= 7) {
+            current_color = 0;  // Restart from red again if you want
+        }
+    }
+}
+
+void Run_From_OutsideToInside(void) {
+    static int current_color = 0;
+
+    for (int i = 0; i < MAX_LED; i += 4) {
+
+        // Light 4 LEDs in sequence from outside to inside
+        for (int j = 0; j < 9; j++) {
+            if ((i + j) < MAX_LED) {
+                Set_LED(i + j, colors[current_color][0], colors[current_color][1], colors[current_color][2]);
+            }
+        }
+
+        Set_Brightness(NORMAL_BRIGHTNESS);
+        WS2812_Send();
+        HAL_Delay(30);
+    }
+
+    // After all are lit in sequence, show the full strip in that color for a moment
+    for (int i = 0; i < MAX_LED; i++) {
+        Set_LED(i, colors[current_color][0], colors[current_color][1], colors[current_color][2]);
+    }
+    WS2812_Send();
+    HAL_Delay(100);
+
+    // Move to next color
+    current_color = (current_color + 1) % 7;
 }
 
 /* USER CODE END 0 */
@@ -450,7 +551,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-  srand(time(NULL));
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -482,7 +583,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	 r7LEDs_rainbow_reverse();
+	 Turn_off_all_at_once();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
