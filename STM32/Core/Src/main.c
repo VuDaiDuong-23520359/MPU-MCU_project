@@ -25,6 +25,8 @@
 #include "time.h"
 #include "stdlib.h"
 #include "stdbool.h"
+#include <stdio.h>
+#include "stm32f4xx.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -40,7 +42,7 @@
 #define USE_BRIGHTNESS 1
 #define PI 3.14159265
 #define ADC_BUF_LEN 64
-#define SOUND_THRESHOLD 50
+#define SOUND_THRESHOLD 1200
 
 
 /* USER CODE END PD */
@@ -52,12 +54,15 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
-DMA_HandleTypeDef hdma_adc1;
 
 TIM_HandleTypeDef htim1;
 DMA_HandleTypeDef hdma_tim1_ch1;
 
 /* USER CODE BEGIN PV */
+uint16_t LED_DURATION_MS = 100;
+uint16_t amp = 0;
+bool led_is_on = false;
+uint32_t led_on_start = 0;
 
 uint8_t LED_Data[MAX_LED][4];
 uint8_t LED_Mod[MAX_LED][4];
@@ -68,7 +73,7 @@ uint16_t  effStep = 0;
 const int blockOn = 6;
 const int blockOff = 8;
 int patternLength = blockOn + blockOff;
-
+uint16_t dynamic_threshold = 20;
 uint8_t colors[7][3] = {
     {255, 0, 0},     // Red
     {255, 127, 0},   // Orange
@@ -79,8 +84,7 @@ uint8_t colors[7][3] = {
     {148, 0, 211}    // Violet
 };
 
-uint32_t adc_value = 0;
-uint16_t adc_buf[ADC_BUF_LEN];
+
 
 
 /* USER CODE END PV */
@@ -97,6 +101,14 @@ static void MX_ADC1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+uint16_t get_amp()
+{
+	 uint16_t temp = abs(HAL_ADC_GetValue(&hadc1) - 1700);
+	 return temp;
+}
+
+
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
     if (htim == &htim1) {
         HAL_TIM_PWM_Stop_DMA(&htim1, TIM_CHANNEL_1);
@@ -113,24 +125,22 @@ void Set_LED (int LEDnum, int Red, int Green, int Blue)
 	LED_Data[LEDnum][3] = Blue;
 }
 
-void Set_Brightness (int brightness)  // 0-45
+void Set_Brightness (int brightness)  // 0–NORMAL_BRIGHTNESS
 {
 #if USE_BRIGHTNESS
+    if (brightness > NORMAL_BRIGHTNESS) brightness = NORMAL_BRIGHTNESS;
+    float scale = brightness / (float)NORMAL_BRIGHTNESS;
 
-	if (brightness > 45) brightness = 45;
-	for (int i=0; i<MAX_LED; i++)
-	{
-		LED_Mod[i][0] = LED_Data[i][0];
-		for (int j=1; j<4; j++)
-		{
-			float angle = 90-brightness;  // in degrees
-			angle = angle*PI / 180;  // in rad
-			LED_Mod[i][j] = (LED_Data[i][j])/(tan(angle));
-		}
-	}
-
+    for (int i = 0; i < MAX_LED; i++)
+    {
+        // preserve the “LED number” byte
+        LED_Mod[i][0] = LED_Data[i][0];
+        // scale each color channel linearly
+        LED_Mod[i][1] = (uint8_t)(LED_Data[i][1] * scale);
+        LED_Mod[i][2] = (uint8_t)(LED_Data[i][2] * scale);
+        LED_Mod[i][3] = (uint8_t)(LED_Data[i][3] * scale);
+    }
 #endif
-
 }
 
 void WS2812_Send (void)
@@ -172,19 +182,6 @@ void WS2812_Send (void)
 	datasentflag = 0;
 }
 
-void Start_ADC_DMA(void) {
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buf, ADC_BUF_LEN);
-}
-
-uint16_t get_audio_amplitude(void) {			// Đo cường độ âm thanh
-    int32_t sum = 0;
-    for (int i = 0; i < ADC_BUF_LEN; i++) {
-        int32_t sample = (int32_t)adc_buf[i] - 2048;  // Giả sử Vref/2 là trung điểm
-        sum += abs(sample);  // cần kiểu signed
-    }
-    return (uint16_t)(sum / ADC_BUF_LEN);  // khoảng 0–2048
-}
-
 uint16_t filtered_audio_amplitude(void) {		// Xử lý nhiễu
     uint16_t amp = get_audio_amplitude();
     return (amp > SOUND_THRESHOLD) ? amp : 0;
@@ -197,7 +194,7 @@ void Set_LEDs_color_at_once(int start, int end, int step, int r, int g, int b){
 	}
 }
 
-void Turn_on_all_at_once(int r, int g, int b){
+void Turn_on_all_at_once(int r, int g, int b ){
 	Set_LEDs_color_at_once(0, MAX_LED, 1, r, g, b);
 	Set_Brightness(NORMAL_BRIGHTNESS);
 	WS2812_Send();
@@ -209,365 +206,7 @@ void Turn_off_all_at_once(void){
 	WS2812_Send();
 }
 
-uint8_t rainbow_effect() {		// Must have Delay after call
-    float factor1, factor2;
-    uint16_t ind;
 
-    for (uint16_t j = 0; j < MAX_LED; j++) {
-        ind = 60 - (int16_t)(effStep - j * 1.2) % 60;
-        switch ((int)((ind % 60) / 20)) {
-            case 0:
-                factor1 = 1.0 - ((float)(ind % 60 - 0 * 20) / 20);
-                factor2 = (float)((int)(ind - 0) % 60) / 20;
-                Set_LED(j, 255 * factor1 + 0 * factor2, 0 * factor1 + 255 * factor2, 0 * factor1 + 0 * factor2);
-                break;
-            case 1:
-                factor1 = 1.0 - ((float)(ind % 60 - 1 * 20) / 20);
-                factor2 = (float)((int)(ind - 20) % 60) / 20;
-                Set_LED(j, 0 * factor1 + 0 * factor2, 255 * factor1 + 0 * factor2, 0 * factor1 + 255 * factor2);
-                break;
-            case 2:
-                factor1 = 1.0 - ((float)(ind % 60 - 2 * 20) / 20);
-                factor2 = (float)((int)(ind - 40) % 60) / 20;
-                Set_LED(j, 0 * factor1 + 255 * factor2, 0 * factor1 + 0 * factor2, 255 * factor1 + 0 * factor2);
-                break;
-        }
-    }
-
-    Set_Brightness(NORMAL_BRIGHTNESS);
-    WS2812_Send();
-
-    effStep++;
-    if (effStep >= 60) {
-        effStep = 0;
-        return 0x03;
-    }
-    return 0x01;
-}
-
-
-void On_off_single_led_ltor(void){
-	for (int i = 0; i < MAX_LED; i++)
-	{
-		  Set_LED(i, 255, 0, 0);
-		  Set_Brightness(NORMAL_BRIGHTNESS);
-		  WS2812_Send();
-		  HAL_Delay (30);
-	}
-	for (int i = MAX_LED - 1; i >= 0; i--)
-	{
-		  Set_LED(i, 0, 0, 0);
-		  Set_Brightness(NORMAL_BRIGHTNESS);
-		  WS2812_Send();
-		  HAL_Delay(30);
-	}
-}
-
-void HSV_to_RGB(float h, float s, float v, uint8_t* r, uint8_t* g, uint8_t* b)
-{
-    float c = v * s;
-    float x = c * (1 - fabsf(fmodf(h / 60.0f, 2) - 1));
-    float m = v - c;
-
-    float r1, g1, b1;
-
-    if (h < 60)      { r1 = c; g1 = x; b1 = 0; }
-    else if (h < 120){ r1 = x; g1 = c; b1 = 0; }
-    else if (h < 180){ r1 = 0; g1 = c; b1 = x; }
-    else if (h < 240){ r1 = 0; g1 = x; b1 = c; }
-    else if (h < 300){ r1 = x; g1 = 0; b1 = c; }
-    else             { r1 = c; g1 = 0; b1 = x; }
-
-    *r = (uint8_t)((r1 + m) * 255);
-    *g = (uint8_t)((g1 + m) * 255);
-    *b = (uint8_t)((b1 + m) * 255);
-}
-
-void Brightness_Color_Fade_Effect(void)
-{
-    uint8_t red, green, blue;
-    static float hue = 0.0f;
-
-    // Fade in
-    for (int brightness = 0; brightness <= NORMAL_BRIGHTNESS; brightness++)
-    {
-        float v = brightness / (float)NORMAL_BRIGHTNESS;
-        HSV_to_RGB(hue, 1.0f, v, &red, &green, &blue);
-
-        for (int i = 0; i < MAX_LED; i++)
-            Set_LED(i, red, green, blue);
-
-        Set_Brightness(brightness);
-        WS2812_Send();
-        HAL_Delay(40);
-    }
-
-    // Fade out
-    for (int brightness = NORMAL_BRIGHTNESS; brightness >= 0; brightness--)
-    {
-        float v = brightness / (float)NORMAL_BRIGHTNESS;
-        HSV_to_RGB(hue, 1.0f, v, &red, &green, &blue);
-
-        for (int i = 0; i < MAX_LED; i++)
-            Set_LED(i, red, green, blue);
-
-        Set_Brightness(brightness);
-        WS2812_Send();
-        HAL_Delay(40);
-    }
-
-    // Move to next hue (e.g. 30 degrees ahead)
-    hue += 30.0f;
-    if (hue >= 360.0f)
-        hue = 0.0f;
-}
-
-
-void On_off_From2Side(void) {
-    int half = MAX_LED / 2;
-
-    // Turn on from both sides
-    for (int i = 0; i < half; i++) {
-        Set_LED(i, 255, 0, 0);                 // Left half: Red
-        Set_LED(MAX_LED - 1 - i, 0, 0, 255);   // Right half: Blue
-        Set_Brightness(NORMAL_BRIGHTNESS);
-        WS2812_Send();
-        HAL_Delay(30);
-    }
-
-    // Swap colors for both sides
-    for (int i = half - 1; i >= 0; i--) {
-        Set_LED(i, 0, 0, 255);                 // Left: Blue
-        Set_LED(MAX_LED - i + 1, 255, 0, 0);   // Right: Red
-        Set_Brightness(NORMAL_BRIGHTNESS);
-        WS2812_Send();
-        HAL_Delay(30);
-    }
-
-    // Turn off from both sides
-    for (int i = 0; i < half; i++) {
-        Set_LED(i, 0, 0, 0);
-        Set_LED(MAX_LED - 1 - i, 0, 0, 0);
-        Set_Brightness(NORMAL_BRIGHTNESS);
-        WS2812_Send();
-        HAL_Delay(30);
-    }
-}
-
-void Blink_all(void){
-	Turn_on_all_at_once(180, 0, 180);
-	HAL_Delay(30);
-
-	Turn_off_all_at_once();
-	HAL_Delay(30);
-}
-
-void On_Off_Groups_Parallel(void) {
-    for (int i = 0; i <= 5; i++){
-    	Set_LEDs_color_at_once(i, MAX_LED, 6, 180, 0, 180);
-    	Set_Brightness(NORMAL_BRIGHTNESS);
-    	WS2812_Send();
-    	HAL_Delay(50);
-    }
-    for (int i = 0; i <= 5; i++){
-    	Set_LEDs_color_at_once(i, MAX_LED, 6, 0, 0, 0);
-    	Set_Brightness(NORMAL_BRIGHTNESS);
-    	WS2812_Send();
-       	HAL_Delay(50);
-    }
-}
-
-void r7LEDs_rainbow(void) {
-    static int head = 0;  // Red LED index (moves forward every call)
-
-    // --- Tail cleanup ---
-    // Find the LED that just moved out of the rainbow window
-    int cleanup_idx = (head - 7 + MAX_LED) % MAX_LED;
-    Set_LED(cleanup_idx, 0, 0, 0);
-
-    // --- Draw current rainbow ---
-    for (int j = 0; j < 7; j++) {
-        int pos = (head - j + MAX_LED) % MAX_LED;
-        Set_LED(pos, colors[j][0], colors[j][1], colors[j][2]);
-    }
-
-    Set_Brightness(NORMAL_BRIGHTNESS);
-    WS2812_Send();
-    HAL_Delay(30);
-
-    head = (head + 1) % MAX_LED;
-}
-
-void r7LEDs_rainbow_reverse(void) {
-    static uint8_t colors[7][3] = {
-        {255, 0, 0},     // Red
-        {255, 127, 0},   // Orange
-        {255, 255, 0},   // Yellow
-        {0, 255, 0},     // Green
-        {0, 0, 255},     // Blue
-        {75, 0, 130},    // Indigo
-        {148, 0, 211}    // Violet
-    };
-
-    static int head = 0;
-    static int direction = 1;     // 1: forward, -1: backward
-    static int waiting = 0;       // flag: waiting for tail to finish
-    static int trail_index = 0;   // index for clearing trail
-
-    // If in waiting mode, only clear trail one step at a time
-    if (waiting) {
-        int idx;
-        if (direction == 1) {
-            // Forward: tail was last 6 LEDs before head
-            idx = head - 7 + trail_index;
-        } else {
-            // Backward: tail was next 6 LEDs after head
-            idx = head + 7 - trail_index;
-        }
-
-        if (idx >= 0 && idx < MAX_LED) {
-            Set_LED(idx, 0, 0, 0);  // Turn off tail
-        }
-
-        trail_index++;
-        WS2812_Send();
-        HAL_Delay(20);
-
-        if (trail_index >= 7) {
-            // Done clearing trail
-            waiting = 0;
-            trail_index = 0;
-            direction *= -1;
-            head += direction;  // Start next direction
-        }
-        return;
-    }
-
-    // Clear previous tail
-    int clear_idx = (direction == 1) ? head - 7 : head + 7;
-    if (clear_idx >= 0 && clear_idx < MAX_LED) {
-        Set_LED(clear_idx, 0, 0, 0);
-    }
-
-    // Set current rainbow
-    for (int j = 0; j < 7; j++) {
-        int idx = head - j * direction;
-        if (idx >= 0 && idx < MAX_LED) {
-            Set_LED(idx, colors[j][0], colors[j][1], colors[j][2]);
-        }
-    }
-
-    Set_Brightness(NORMAL_BRIGHTNESS);
-    WS2812_Send();
-    HAL_Delay(30);
-
-    // Move red head
-    head += direction;
-
-    // Start waiting when red reaches out of bounds
-    if ((direction == 1 && head >= MAX_LED + 7) ||
-        (direction == -1 && head < -7)) {
-        waiting = 1;
-        trail_index = 0;
-        head -= direction;  // stay at edge while waiting
-    }
-}
-
-void Blink_Groups_Parallel(void) {
-    for (int i = 0; i <= 5; i++){
-    	Set_LEDs_color_at_once(i, MAX_LED, 6, 180, 0, 180);
-    	Set_Brightness(NORMAL_BRIGHTNESS);
-    	WS2812_Send();
-    	HAL_Delay(50);
-
-    	Set_LEDs_color_at_once(i, MAX_LED, 6, 0, 0, 0);
-    	Set_Brightness(NORMAL_BRIGHTNESS);
-    	WS2812_Send();
-    }
-}
-
-void Blink_Random_per6LEDs(void){
-	const int group_count = 9;
-	const int group_size = 6;
-
-	Turn_off_all_at_once();
-
-    for (int i = 0; i < group_count; i++) {
-        int start = i * group_size;
-        int random_value = start + (rand() % group_size);
-        Set_LED(random_value, 180, 0, 180);
-    }
-    Set_Brightness(NORMAL_BRIGHTNESS);
-    WS2812_Send();
-    HAL_Delay(30);
-}
-
-void r7LEDs_rainbow_phased(void) {
-    static int current_color = 0;         // Index in the rainbow
-    static int head = -6;                 // LED position (start from -6 to grow the trail)
-    const int TRAIL_LEN = 7;
-
-    // Clear the LED that just moved out of the trail
-    int cleanup_idx = head - TRAIL_LEN;
-    if (cleanup_idx >= 0 && cleanup_idx < MAX_LED) {
-        Set_LED(cleanup_idx, 0, 0, 0);
-    }
-
-    // Draw the trail (from head to head - 6)
-    for (int j = 0; j < TRAIL_LEN; j++) {
-        int pos = head - j;
-        if (pos >= 0 && pos < MAX_LED) {
-            uint8_t r = (colors[current_color][0] * (TRAIL_LEN - j)) / TRAIL_LEN;
-            uint8_t g = (colors[current_color][1] * (TRAIL_LEN - j)) / TRAIL_LEN;
-            uint8_t b = (colors[current_color][2] * (TRAIL_LEN - j)) / TRAIL_LEN;
-            Set_LED(pos, r, g, b);
-        }
-    }
-
-    Set_Brightness(NORMAL_BRIGHTNESS);
-    WS2812_Send();
-    HAL_Delay(30);
-
-    head++;
-
-    // When the trail has fully left the strip
-    if (head - TRAIL_LEN >= MAX_LED) {
-        head = -6;  // Reset head for the next color
-        current_color++;
-
-        if (current_color >= 7) {
-            current_color = 0;  // Restart from red again if you want
-        }
-    }
-}
-
-void Run_From_OutsideToInside(void) {
-    static int current_color = 0;
-
-    for (int i = 0; i < MAX_LED; i += 4) {
-
-        // Light 4 LEDs in sequence from outside to inside
-        for (int j = 0; j < 9; j++) {
-            if ((i + j) < MAX_LED) {
-                Set_LED(i + j, colors[current_color][0], colors[current_color][1], colors[current_color][2]);
-            }
-        }
-
-        Set_Brightness(NORMAL_BRIGHTNESS);
-        WS2812_Send();
-        HAL_Delay(30);
-    }
-
-    // After all are lit in sequence, show the full strip in that color for a moment
-    for (int i = 0; i < MAX_LED; i++) {
-        Set_LED(i, colors[current_color][0], colors[current_color][1], colors[current_color][2]);
-    }
-    WS2812_Send();
-    HAL_Delay(100);
-
-    // Move to next color
-    current_color = (current_color + 1) % 7;
-}
 
 
 
@@ -606,24 +245,55 @@ int main(void)
   MX_TIM1_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-  Start_ADC_DMA();
 
-  Turn_on_all_at_once(180, 0, 180);
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	 uint16_t amplitude = filtered_audio_amplitude();
-	 if (amplitude > 0) {
-	    Set_Brightness(amplitude);
-	 } else {
-	    Set_Brightness(0);
-	 }
-	 WS2812_Send();
+	  HAL_ADC_Start(&hadc1);
+	  if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK)
+	  amp = get_amp();
+	  HAL_ADC_Stop(&hadc1);
 
-	 HAL_Delay(10);
+	  if (!led_is_on && amp > 1400)
+	      {
+	          Turn_on_all_at_once(150, 0, 0);
+	          led_on_start = HAL_GetTick();   // remember when we turned it on
+	          led_is_on    = true;
+	      }
+
+	      /* --- 3) Turn LED off after 50 ms --- */
+	  if (led_is_on && (HAL_GetTick() - led_on_start >= LED_DURATION_MS))
+	      {
+	          Turn_off_all_at_once();
+	          led_is_on = false;
+	      }
+
+
+
+
+
+	  HAL_Delay(1);
+
+
+//	 uint16_t amplitude = filtered_audio_amplitude();
+//	 if (amplitude > 0) {
+//	    Set_Brightness(amplitude);
+//	 } else {
+//	    Set_Brightness(0);
+//	 }
+//	 WS2812_Send();
+//
+//	 HAL_Delay(10);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -701,13 +371,13 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.ScanConvMode = DISABLE;
-  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.NbrOfConversion = 1;
-  hadc1.Init.DMAContinuousRequests = ENABLE;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
@@ -718,7 +388,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_84CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -814,11 +484,8 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA2_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
   /* DMA2_Stream1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA2_Stream1_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(DMA2_Stream1_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream1_IRQn);
 
 }
@@ -839,12 +506,30 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOE_CLK_ENABLE();
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
-
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+     GPIO_InitStruct.Pin  = GPIO_PIN_0;
+     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+     GPIO_InitStruct.Pull = GPIO_NOPULL;
+     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
-
+//void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc) {
+//    if (hadc == &hadc1) {
+//        uint16_t amp = process_buffer(adc_buf, ADC_BUF_LEN/2);
+//        uint8_t br  = map_amplitude_to_brightness(amp, dynamic_threshold);
+//        Set_Brightness(br);
+//        WS2812_Send();
+//    }
+//}
+//
+//// Called when second half of adc_buf is filled by DMA (another 32 samples)
+//void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
+//		amp = HAL_ADC_GetValue(hadc);
+//
+//
+//}
 /* USER CODE END 4 */
 
 /**
