@@ -41,8 +41,6 @@
 #define NORMAL_BRIGHTNESS 20
 #define USE_BRIGHTNESS 1
 #define PI 3.14159265
-#define ADC_BUF_LEN 64
-#define SOUND_THRESHOLD 1200
 
 
 /* USER CODE END PD */
@@ -84,8 +82,9 @@ uint8_t colors[7][3] = {
     {148, 0, 211}    // Violet
 };
 
-
-
+uint16_t amp_buffer[32];
+int buffer_index = 0;
+uint16_t middle_point = 0;
 
 /* USER CODE END PV */
 
@@ -102,11 +101,30 @@ static void MX_ADC1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+
+
+
+
+void calculate_middle_point(){
+	uint32_t sum = 0;
+	for (int i = 0; i < 32; i++){
+		  HAL_ADC_Start(&hadc1);
+		  if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK)
+			  sum += HAL_ADC_GetValue(&hadc1);
+		  HAL_ADC_Stop(&hadc1);
+		  HAL_Delay(1);
+	  }
+
+	middle_point = (uint16_t)(sum / 32);
+}
+
+
 uint16_t get_amp()
 {
-	 uint16_t temp = abs(HAL_ADC_GetValue(&hadc1) - 1700);
-	 return temp;
+	uint16_t temp = HAL_ADC_GetValue(&hadc1);
+	return abs(temp - middle_point);
 }
+
 
 
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
@@ -182,10 +200,7 @@ void WS2812_Send (void)
 	datasentflag = 0;
 }
 
-uint16_t filtered_audio_amplitude(void) {		// Xử lý nhiễu
-    uint16_t amp = get_audio_amplitude();
-    return (amp > SOUND_THRESHOLD) ? amp : 0;
-}
+
 
 //effect
 void Set_LEDs_color_at_once(int start, int end, int step, int r, int g, int b){
@@ -194,11 +209,13 @@ void Set_LEDs_color_at_once(int start, int end, int step, int r, int g, int b){
 	}
 }
 
-void Turn_on_all_at_once(int r, int g, int b ){
-	Set_LEDs_color_at_once(0, MAX_LED, 1, r, g, b);
+void Turn_on_all_at_once(int r, int g, int b, int to_led){
+	Set_LEDs_color_at_once(0, to_led, 1, r, g, b);
 	Set_Brightness(NORMAL_BRIGHTNESS);
 	WS2812_Send();
 }
+
+
 
 void Turn_off_all_at_once(void){
 	Set_LEDs_color_at_once(0, MAX_LED, 1, 0, 0, 0);
@@ -206,7 +223,29 @@ void Turn_off_all_at_once(void){
 	WS2812_Send();
 }
 
-
+int effect1(){
+	if (amp > 1500){
+		Turn_on_all_at_once(150, 0, 0, 5);
+		return 1;
+	}
+	else if (amp > 1400){
+		Turn_on_all_at_once(150, 0, 0, 4);
+		return 1;
+	}
+	else if (amp > 1300){
+		Turn_on_all_at_once(150, 0, 0, 3);
+		return 1;
+	}
+	else if (amp > 1200){
+		Turn_on_all_at_once(150, 0, 0, 2);
+		return 1;
+	}
+	else if (amp > 1100){
+		Turn_on_all_at_once(150, 0, 0, 1);
+		return 1;
+	}
+	return 0;
+}
 
 
 
@@ -248,10 +287,8 @@ int main(void)
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
+// DUNG CO DUNG VAO
+  calculate_middle_point();
 
   /* USER CODE END 2 */
 
@@ -261,17 +298,19 @@ int main(void)
   {
 	  HAL_ADC_Start(&hadc1);
 	  if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK)
-	  amp = get_amp();
+		  amp = get_amp();
 	  HAL_ADC_Stop(&hadc1);
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	  if (!led_is_on && amp > 1400)
+
+
+	  if (effect1())
 	      {
-	          Turn_on_all_at_once(150, 0, 0);
 	          led_on_start = HAL_GetTick();   // remember when we turned it on
 	          led_is_on    = true;
 	      }
 
-	      /* --- 3) Turn LED off after 50 ms --- */
+
 	  if (led_is_on && (HAL_GetTick() - led_on_start >= LED_DURATION_MS))
 	      {
 	          Turn_off_all_at_once();
@@ -388,7 +427,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_84CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_28CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
