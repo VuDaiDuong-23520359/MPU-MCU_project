@@ -86,6 +86,9 @@ uint16_t amp_buffer[32];
 int buffer_index = 0;
 uint16_t middle_point = 0;
 
+int amp_maxn = 1600; 	// Noise
+int amp_maxq = 1000;	// Quiet
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -200,7 +203,28 @@ void WS2812_Send (void)
 	datasentflag = 0;
 }
 
+void HSV_to_RGB(float h, float s, float v, uint8_t* r, uint8_t* g, uint8_t* b) {
+    int i = (int)(h / 60.0f) % 6;
+    float f = (h / 60.0f) - i;
+    float p = v * (1.0f - s);
+    float q = v * (1.0f - f * s);
+    float t = v * (1.0f - (1.0f - f) * s);
 
+    float r_, g_, b_;
+
+    switch (i) {
+        case 0: r_ = v; g_ = t; b_ = p; break;
+        case 1: r_ = q; g_ = v; b_ = p; break;
+        case 2: r_ = p; g_ = v; b_ = t; break;
+        case 3: r_ = p; g_ = q; b_ = v; break;
+        case 4: r_ = t; g_ = p; b_ = v; break;
+        default: r_ = v; g_ = p; b_ = q; break;
+    }
+
+    *r = (uint8_t)(r_ * 255);
+    *g = (uint8_t)(g_ * 255);
+    *b = (uint8_t)(b_ * 255);
+}
 
 //effect
 void Set_LEDs_color_at_once(int start, int end, int step, int r, int g, int b){
@@ -223,31 +247,192 @@ void Turn_off_all_at_once(void){
 	WS2812_Send();
 }
 
-int effect1(){
-	if (amp > 1500){
-		Turn_on_all_at_once(150, 0, 0, 5);
-		return 1;
-	}
-	else if (amp > 1400){
-		Turn_on_all_at_once(150, 0, 0, 4);
-		return 1;
-	}
-	else if (amp > 1300){
-		Turn_on_all_at_once(150, 0, 0, 3);
-		return 1;
-	}
-	else if (amp > 1200){
-		Turn_on_all_at_once(150, 0, 0, 2);
-		return 1;
-	}
-	else if (amp > 1100){
-		Turn_on_all_at_once(150, 0, 0, 1);
-		return 1;
-	}
-	return 0;
+void get_rainbow_color(uint16_t index, uint16_t effStep, uint8_t *red, uint8_t *green, uint8_t *blue)
+{
+    // Compute a “phase” value in [0, 59], matching the original rainbow_effect logic
+    int16_t temp = (int16_t)(effStep - index * 1.2f);
+    int16_t mod  = temp % 60;            // may be negative or positive
+    if (mod < 0) mod += 60;              // ensure 0 ≤ mod < 60
+    uint16_t ind = 60 - mod;             // ind in [1, 60]
+    ind = ind % 60;                      // now in [0, 59]
+
+    // Determine which third of the 60-step “wheel” we’re in
+    uint16_t segment = (ind % 60) / 20;  // 0 → red→green, 1 → green→blue, 2 → blue→red
+
+    float factor1, factor2;
+    uint8_t rr = 0, gg = 0, bb = 0;
+
+    switch (segment) {
+        case 0:
+            // Transition red → green
+            // factor1 goes from 1 → 0 over 20 steps; factor2 goes from 0 → 1
+            factor1 = 1.0f - ((float)(ind % 20) / 20.0f);
+            factor2 = ((float)(ind % 20) / 20.0f);
+            rr = (uint8_t)(255.0f * factor1);
+            gg = (uint8_t)(255.0f * factor2);
+            bb = 0;
+            break;
+
+        case 1:
+            // Transition green → blue
+            factor1 = 1.0f - ((float)((ind % 60) - 20) / 20.0f);
+            factor2 = ((float)((ind % 60) - 20) / 20.0f);
+            rr = 0;
+            gg = (uint8_t)(255.0f * factor1);
+            bb = (uint8_t)(255.0f * factor2);
+            break;
+
+        case 2:
+            // Transition blue → red
+            factor1 = 1.0f - ((float)((ind % 60) - 40) / 20.0f);
+            factor2 = ((float)((ind % 60) - 40) / 20.0f);
+            rr = (uint8_t)(255.0f * factor2);
+            gg = 0;
+            bb = (uint8_t)(255.0f * factor1);
+            break;
+    }
+
+    // Store results
+    *red = rr;
+    *green = gg;
+    *blue = bb;
+}
+
+void effect_sound_color() {
+    float ratio = (float)amp / amp_maxn;
+    if (ratio > 1.0) ratio = 1.0;
+    if (ratio <= 0.05f) {
+    	Turn_off_all_at_once();
+    	WS2812_Send();
+    	return;
+    }
+
+    int brightness = 5 + (int)(ratio * (NORMAL_BRIGHTNESS - 5));
+    Set_Brightness(brightness);
+
+    uint8_t r, g, b;
+
+    if (ratio < 0.5f) {
+        float t = ratio / 0.5f;
+        r = (uint8_t)(0 + t * (148 - 0));
+        g = 0;
+        b = (uint8_t)(255 + t * (211 - 255));
+    } else {
+        float t = (ratio - 0.5f) / 0.5f;
+        if (t < 0.5f) {
+            float t2 = t / 0.5f;
+            r = 255;
+            g = (uint8_t)(0 + t2 * (127 - 0));
+            b = 0;
+        } else {
+            float t2 = (t - 0.5f) / 0.5f;
+            r = 255;
+            g = (uint8_t)(127 + t2 * (255 - 127));
+            b = 0;
+        }
+    }
+
+    for (int i = 0; i < MAX_LED; i++) {
+        Set_LED(i, r, g, b);
+    }
+    WS2812_Send();
+}
+
+void ripple_effect(uint16_t amplitude) {
+    float ratio = (float)amplitude / amp_maxn;
+    if (ratio > 1.0f) ratio = 1.0f;
+
+    if (ratio <= 0.05f) {
+        Turn_off_all_at_once();
+        WS2812_Send();
+        return;
+    }
+
+    int center = MAX_LED / 2;
+    int spread = 1 + (int)(ratio * (MAX_LED / 2));
+
+    for (int i = 0; i < MAX_LED; i++) {
+        int dist = abs(i - center);
+        float brightness = 1.0f - ((float)dist / spread);
+        if (brightness < 0.0f) brightness = 0.0f;
+
+        // Get rainbow color based on position
+        uint8_t r, g, b;
+        get_rainbow_color(i, effStep, &r, &g, &b);
+
+        // Apply brightness modulation to color
+        Set_LED(i, (uint8_t)(r * brightness), (uint8_t)(g * brightness), (uint8_t)(b * brightness));
+    }
+
+    Set_Brightness(NORMAL_BRIGHTNESS);
+    WS2812_Send();
+
+    effStep = (effStep + 1) % 60;
 }
 
 
+void sound_bar_hue_gradient(uint16_t amplitude) {
+    static int current_led_count = 1;
+    int target_led_count;
+
+    float ratio = (float)amplitude / amp_maxn;
+    if (ratio > 1.0f) ratio = 1.0f;
+
+    target_led_count = (int)(ratio * MAX_LED);
+    if (target_led_count < 1) target_led_count = 1;
+
+    if (amplitude < 100 && current_led_count > 1) {
+        current_led_count--;
+    } else if (target_led_count > current_led_count) {
+        current_led_count++;
+    }
+
+    Turn_off_all_at_once();
+
+    for (int i = 0; i < current_led_count; i++) {
+        float t = (float)i / (current_led_count - 1);
+        float hue = 270.0f * (1.0f - t); // tím (270°) → đỏ (0°)
+
+        uint8_t r, g, b;
+        HSV_to_RGB(hue, 1.0f, 1.0f, &r, &g, &b);
+        Set_LED(i, r, g, b);
+    }
+
+    Set_Brightness(NORMAL_BRIGHTNESS);
+    WS2812_Send();
+}
+
+void effect_random_one_in_six_leds_by_sound(uint16_t amplitude) {
+    float ratio = (float)amplitude / amp_maxn;
+    if (ratio > 1.0f) ratio = 1.0f;
+
+    // Ignore low amplitude (silence)
+    if (ratio <= 0.05f) {
+        Turn_off_all_at_once();
+        WS2812_Send();
+        return;
+    }
+
+    Turn_off_all_at_once();
+
+    const int group_size = 6; //per n Led will have 1 random led lighted
+    for (int start = 0; start < MAX_LED; start += group_size) {
+        int rand_index = rand() % group_size;
+        int led_index = start + rand_index;
+        if (led_index >= MAX_LED) break;
+
+        // Optional: brighter when louder
+        uint8_t brightness = (uint8_t)(ratio * 255);
+        uint8_t r = brightness;
+        uint8_t g = rand() % brightness;
+        uint8_t b = rand() % brightness;
+
+        Set_LED(led_index, r, g, b);
+    }
+
+    Set_Brightness(5 + (int)(ratio * (NORMAL_BRIGHTNESS - 5)));
+    WS2812_Send();
+}
 
 /* USER CODE END 0 */
 
@@ -301,38 +486,32 @@ int main(void)
 		  amp = get_amp();
 	  HAL_ADC_Stop(&hadc1);
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      if (!led_is_on && amp > 700)
+      {
+          led_on_start = HAL_GetTick();
+          led_is_on    = true;
+      }
 
+      /* While led_is_on, run effect; after 50 ms, stop --- */
+      if (led_is_on)
+      {
+          sound_bar_hue_gradient(amp);
 
-
-	  if (effect1())
-	      {
-	          led_on_start = HAL_GetTick();   // remember when we turned it on
-	          led_is_on    = true;
-	      }
-
-
-	  if (led_is_on && (HAL_GetTick() - led_on_start >= LED_DURATION_MS))
-	      {
-	          Turn_off_all_at_once();
-	          led_is_on = false;
-	      }
-
-
-
-
+          if ((HAL_GetTick() - led_on_start) >= 50)
+          {
+              Turn_off_all_at_once();
+              WS2812_Send();
+              led_is_on = false;
+          }
+      }
+      else
+      {
+          Turn_off_all_at_once();
+          WS2812_Send();
+      }
 
 	  HAL_Delay(1);
 
-
-//	 uint16_t amplitude = filtered_audio_amplitude();
-//	 if (amplitude > 0) {
-//	    Set_Brightness(amplitude);
-//	 } else {
-//	    Set_Brightness(0);
-//	 }
-//	 WS2812_Send();
-//
-//	 HAL_Delay(10);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
