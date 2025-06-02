@@ -298,8 +298,8 @@ void get_rainbow_color(uint16_t index, uint16_t effStep, uint8_t *red, uint8_t *
     *blue = bb;
 }
 
-void effect_sound_color() {
-    float ratio = (float)amp / amp_maxn;
+void effect_sound_color(uint16_t amplitude) {
+    float ratio = (float)amplitude / amp_maxn;
     if (ratio > 1.0) ratio = 1.0;
     if (ratio <= 0.05f) {
     	Turn_off_all_at_once();
@@ -444,7 +444,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+	srand(HAL_GetTick());
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -486,7 +486,9 @@ int main(void)
 		  amp = get_amp();
 	  HAL_ADC_Stop(&hadc1);
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-      if (!led_is_on && amp > 700)
+      // This for running every blink effect
+	  // BEGIN
+	  if (!led_is_on && amp > 700)
       {
           led_on_start = HAL_GetTick();
           led_is_on    = true;
@@ -495,7 +497,9 @@ int main(void)
       /* While led_is_on, run effect; after 50 ms, stop --- */
       if (led_is_on)
       {
-          sound_bar_hue_gradient(amp);
+    	  effect_sound_color(amp);
+//    	  ripple_effect(amp);
+//    	  effect_random_one_in_six_leds_by_sound(amp);
 
           if ((HAL_GetTick() - led_on_start) >= 50)
           {
@@ -509,7 +513,13 @@ int main(void)
           Turn_off_all_at_once();
           WS2812_Send();
       }
+      //END
 
+	  //BEGIN this for running hue effect
+      //sound_bar_hue_gradient(amp);
+      // END
+
+      //This line get the sample of the mic at 1KHz
 	  HAL_Delay(1);
 
     /* USER CODE END WHILE */

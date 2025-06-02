@@ -14,9 +14,9 @@
 ../Core/Src/main.c:374:6:sound_bar_hue_gradient	7
 ../Core/Src/main.c:405:6:effect_random_one_in_six_leds_by_sound	5
 ../Core/Src/main.c:443:5:main	6
-../Core/Src/main.c:540:6:SystemClock_Config	3
-../Core/Src/main.c:587:13:MX_ADC1_Init	3
-../Core/Src/main.c:639:13:MX_TIM1_Init	7
-../Core/Src/main.c:712:13:MX_DMA_Init	1
-../Core/Src/main.c:730:13:MX_GPIO_Init	1
-../Core/Src/main.c:771:6:Error_Handler	1
+../Core/Src/main.c:536:6:SystemClock_Config	3
+../Core/Src/main.c:583:13:MX_ADC1_Init	3
+../Core/Src/main.c:635:13:MX_TIM1_Init	7
+../Core/Src/main.c:708:13:MX_DMA_Init	1
+../Core/Src/main.c:726:13:MX_GPIO_Init	1
+../Core/Src/main.c:767:6:Error_Handler	1
