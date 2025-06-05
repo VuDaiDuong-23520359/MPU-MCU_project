@@ -27,6 +27,9 @@
 #include "stdbool.h"
 #include <stdio.h>
 #include "stm32f4xx.h"
+
+#define ARM_MATH_CM4
+#include "arm_math.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,10 +40,20 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define MAX_LED 54
+
 #define MAX_BRIGHTNESS 45
 #define NORMAL_BRIGHTNESS 20
 #define USE_BRIGHTNESS 1
+
 #define PI 3.14159265
+
+// for FFT
+#define FFT_BUFFER_SIZE 2048
+#define AUDIO_BUFFER_SIZE 256
+#define SAMPLE_RATE_HZ 48828.0f
+#define UINT16_TO_FLOAT 0.00001525878f
+#define INT16_TO_FLOAT 0.00003051757f
+#define FLOAT_TO_INT16 32768.0f
 
 
 /* USER CODE END PD */
@@ -68,9 +81,6 @@ int datasentflag = 0;
 uint16_t pwmData[(24 * MAX_LED)+50];
 uint16_t  effStep = 0;
 
-const int blockOn = 6;
-const int blockOff = 8;
-int patternLength = blockOn + blockOff;
 uint16_t dynamic_threshold = 20;
 uint8_t colors[7][3] = {
     {255, 0, 0},     // Red
@@ -88,6 +98,12 @@ uint16_t middle_point = 0;
 
 int amp_maxn = 1600; 	// Noise
 int amp_maxq = 1000;	// Quiet
+
+// for FFT
+arm_rfft_fast_instance_f32 fftHandler;
+float fftBufIn[FFT_BUFFER_SIZE];
+float fftBufOut[FFT_BUFFER_SIZE];
+uint8_t fftFlag = 0;
 
 /* USER CODE END PV */
 
@@ -239,8 +255,6 @@ void Turn_on_all_at_once(int r, int g, int b, int to_led){
 	WS2812_Send();
 }
 
-
-
 void Turn_off_all_at_once(void){
 	Set_LEDs_color_at_once(0, MAX_LED, 1, 0, 0, 0);
 	Set_Brightness(NORMAL_BRIGHTNESS);
@@ -298,8 +312,8 @@ void get_rainbow_color(uint16_t index, uint16_t effStep, uint8_t *red, uint8_t *
     *blue = bb;
 }
 
-void effect_sound_color(uint16_t amplitude) {
-    float ratio = (float)amplitude / amp_maxn;
+void effect_sound_color() {
+    float ratio = (float)amp / amp_maxn;
     if (ratio > 1.0) ratio = 1.0;
     if (ratio <= 0.05f) {
     	Turn_off_all_at_once();
@@ -434,6 +448,53 @@ void effect_random_one_in_six_leds_by_sound(uint16_t amplitude) {
     WS2812_Send();
 }
 
+/*	// for FFT
+void Process_HalfBuffer(){
+	static float leftIn, rightIn;
+	static float leftProcessed, rightProcessed;
+	static int16_t leftOut, rightOut;
+
+	static int16_t fftIndex = 0;
+
+	// Lock control settings
+	controlSettingsLocked = 1;
+
+	// Loop through half of double buffer
+	for (uint8_t n = 0; n < (AUDIO_BUFFER_SIZE / 2) - 1; n += 2){
+
+		// Convert to float
+		leftIn = INT16_TO_FLOAT * ((float) inBufPtr[n]);
+		rightin = INT16_TO_FLOAT * ((float) inBufPtr[n + 1]);
+
+		// Fill FFT Buffer
+		fftBufIn[fftIndex] = leftIn;
+		fftIndex++;
+
+		if (fftIndex == FFT_BUFFER_SIZE){
+			// Perform FFT
+			arm_rfft_fast_f32(&fftHandler, &fftBufIn, &fftBufOut, 0);
+
+			// Set FFT Flag
+			fftFlag = 1;
+
+			// Reset FFT array index
+			fftIndex = 0;
+		}
+
+		// Apply processing to input
+		leftProcessed = leftIn;
+		rightProcessed = rightIn;
+
+		// Convert processed float to int16_t for output buffer
+		leftOut = (int16_t) (FLOAT_TO_INT16 * outputVolume * leftProcessed);
+		rightOut = (int16_t) (FLOAT_TO_INT16 * outputVolume * rightProcessed);
+
+		// Set output buffer samples
+		outBufPtr[n] = leftOut;
+		outBufPtr[n] = rightOut;
+	}
+} */
+
 /* USER CODE END 0 */
 
 /**
@@ -444,7 +505,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-	srand(HAL_GetTick());
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -469,11 +530,19 @@ int main(void)
   MX_TIM1_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
+  /*// for FFT
+  //Intialise FFT
+  arm_rfft_fast_init_f32(&fftHandler, FFT_BUFFER_SIZE);
 
+  float	peakVal	= 0.0f;
+  uint16_t peakHz = 0;
+  */
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DUNG CO DUNG VAO
   calculate_middle_point();
+
+
 
   /* USER CODE END 2 */
 
@@ -486,9 +555,7 @@ int main(void)
 		  amp = get_amp();
 	  HAL_ADC_Stop(&hadc1);
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-      // This for running every blink effect
-	  // BEGIN
-	  if (!led_is_on && amp > 700)
+      if (!led_is_on && amp > 700)
       {
           led_on_start = HAL_GetTick();
           led_is_on    = true;
@@ -497,9 +564,7 @@ int main(void)
       /* While led_is_on, run effect; after 50 ms, stop --- */
       if (led_is_on)
       {
-    	  effect_sound_color(amp);
-//    	  ripple_effect(amp);
-//    	  effect_random_one_in_six_leds_by_sound(amp);
+          sound_bar_hue_gradient(amp);
 
           if ((HAL_GetTick() - led_on_start) >= 50)
           {
@@ -513,14 +578,45 @@ int main(void)
           Turn_off_all_at_once();
           WS2812_Send();
       }
-      //END
 
-	  //BEGIN this for running hue effect
-      //sound_bar_hue_gradient(amp);
-      // END
-
-      //This line get the sample of the mic at 1KHz
 	  HAL_Delay(1);
+
+	  //for FFT
+	  /*
+	  if (fftFlag){
+		  // Compute absolute value of complex FFT results per frequency bin, get peak
+		  peakVal = 0.0f;
+		  peakHz = 0;
+
+		  uint16_t freqIndex = 0;
+
+		  for (uint16_t index = 0; index < FFT_BUFFER_SIZE; index += 2){
+			  float curVal = sqrtf((fftBufOut[index] * fftBufOut[index]) + (fftBufOut[index + 1] * fftBufOut[index + 1]));
+
+			  if (curVal > peakVal) {
+
+				  peakVal = curVal;
+				  peakHz = (uint16_t) (freqIndex * SAMPLE_RATE_HZ / ((float) FFT_BUFFER_SIZE));
+
+			  }
+
+			  freqIndex++;
+
+		  }
+
+		  fftFlag = 0;
+	  }
+
+	  //USB
+		if ( (HAL_GetTick() - timerUSB) >= USB_DEBUG_TIME_MS ){
+			uint16_t usbBuf[USB_BUFFER_SIZE_MAX];
+			uint16_t usbBufLen = snprintf((char *) usbBuf, USB_BUFFER_SIZE_MAX, "%u\r\n", peakHz);
+
+			CDC_Transmit_HS((uint8_t *) usbBuf. usbBufLen);
+
+			timerUSB = HAL_GetTick();
+		}
+	  */
 
     /* USER CODE END WHILE */
 
