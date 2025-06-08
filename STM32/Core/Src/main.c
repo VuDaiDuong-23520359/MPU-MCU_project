@@ -89,14 +89,13 @@ uint8_t colors[7][3] = {
     {148, 0, 211}    // Violet
 };
 
-
-uint16_t middle_point = 0;
+int16_t middle_point_index = 32;
+uint32_t middle_point = 0;
 
 int amp_maxn = 1600; 	// Noise
 int amp_maxq = 1000;	// Quiet
 
 // for FFT
-uint16_t freq = 0;
 uint16_t peakHz = 0;
 arm_rfft_fast_instance_f32 fftHandler;
 float fftBufIn[FFT_BUFFER_SIZE];
@@ -125,7 +124,7 @@ void record_sample_and_maybe_runFFT(void) {
     // Convert raw 12‐bit ADC (0..4095) to float in [-1,+1], after centering around middle_point
 	uint16_t raw_adc = HAL_ADC_GetValue(&hadc1);
 
-    float centered = ((float)(raw_adc - middle_point)) * UINT16_TO_FLOAT;
+    float centered = ((float)(raw_adc - (uint16_t)(middle_point))) * UINT16_TO_FLOAT;
     fftBufIn[fftIndex] = centered;
     fftIndex++;
 
@@ -139,18 +138,6 @@ void record_sample_and_maybe_runFFT(void) {
 }
 
 
-void calculate_middle_point(){
-	uint32_t sum = 0;
-	for (int i = 0; i < 32; i++){
-		  HAL_ADC_Start(&hadc1);
-		  if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK)
-			  sum += HAL_ADC_GetValue(&hadc1);
-		  HAL_ADC_Stop(&hadc1);
-		  HAL_Delay(1);
-	  }
-
-	middle_point = (uint16_t)(sum / 32);
-}
 
 
 
@@ -322,6 +309,51 @@ void get_rainbow_color(uint16_t index, uint16_t effStep, uint8_t *red, uint8_t *
     *blue = bb;
 }
 
+// Helper function to map frequency to color temperature (warm to cool)
+void frequency_to_color_temp(uint16_t freq, uint8_t* r, uint8_t* g, uint8_t* b) {
+    if (freq < 250) {
+        // Low frequencies: Warm colors (Red to Orange)
+        float ratio = (float)freq / 250.0f;
+        *r = 255;
+        *g = (uint8_t)(ratio * 165); // Orange component
+        *b = 0;
+    } else if (freq <= 2000) {
+        // Mid frequencies: Yellow to Green
+        float ratio = (float)(freq - 250) / 1750.0f;
+        *r = (uint8_t)(255 * (1.0f - ratio)); // Fade out red
+        *g = 255;
+        *b = 0;
+    } else {
+        // High frequencies: Cool colors (Green to Blue to Violet)
+        float ratio = (freq - 2000) / 18000.0f; // Up to 20kHz
+        if (ratio > 1.0f) ratio = 1.0f;
+
+        if (ratio < 0.5f) {
+            // Green to Blue
+            float t = ratio * 2.0f;
+            *r = 0;
+            *g = (uint8_t)(255 * (1.0f - t));
+            *b = (uint8_t)(255 * t);
+        } else {
+            // Blue to Violet
+            float t = (ratio - 0.5f) * 2.0f;
+            *r = (uint8_t)(128 * t);
+            *g = 0;
+            *b = 255;
+        }
+    }
+}
+
+// Helper function to map frequency to full spectrum (Red to Violet)
+void frequency_to_full_spectrum(uint16_t freq, uint8_t* r, uint8_t* g, uint8_t* b) {
+    // Map frequency to hue (0-300 degrees)
+    float hue = (float)freq / 7000.0f * 300.0f; // 0-7kHz mapped to 0-300°
+    if (hue > 300.0f) hue = 300.0f;
+
+    HSV_to_RGB(hue, 1.0f, 1.0f, r, g, b);
+
+}
+
 void effect_sound_color() {
     float ratio = (float)amp / amp_maxn;
     if (ratio > 1.0) ratio = 1.0;
@@ -458,6 +490,233 @@ void effect_random_one_in_six_leds_by_sound(uint16_t amplitude) {
     WS2812_Send();
 }
 
+#define AMP_THRESHOLD 1000     // Amplitude threshold to detect a beat
+#define FADE_DURATION_MS 500   // Fade duration in milliseconds
+void effect_flash_fade_random_color(uint16_t amp, uint16_t peakHz) {
+    static uint32_t last_flash_time = 0;  // Time of the last flash
+
+    uint32_t current_time = HAL_GetTick();  // Current time in milliseconds
+
+    // Beat detection: Check if amplitude exceeds threshold
+    if (amp > AMP_THRESHOLD) {
+        // Generate a random RGB color (0-255)
+        uint8_t r = rand() % 256;
+        uint8_t g = rand() % 256;
+        uint8_t b = rand() % 256;
+
+        // Set all LEDs to the new random color
+        for (int i = 0; i < MAX_LED; i++) {
+            Set_LED(i, r, g, b);
+        }
+
+        // Update the last flash time to start a new fade cycle
+        last_flash_time = current_time;
+    }
+
+    // Calculate elapsed time since the last flash
+    uint32_t elapsed_time = current_time - last_flash_time;
+
+    // Calculate brightness based on elapsed time
+    int brightness;
+    if (elapsed_time >= FADE_DURATION_MS) {
+        brightness = 0;  // Fully faded out
+    } else {
+        // Linear fade: brightness decreases from NORMAL_BRIGHTNESS to 0
+        brightness = NORMAL_BRIGHTNESS - (NORMAL_BRIGHTNESS * elapsed_time) / FADE_DURATION_MS;
+    }
+
+    // Apply the calculated brightness to the LEDs
+    Set_Brightness(brightness);
+
+    // Update the LED strip
+    WS2812_Send();
+}
+
+void effect_dynamic_vu_meter(uint16_t amplitude, uint16_t peak_freq) {
+    // Calculate ratio and number of LEDs to light
+    float ratio = (float)amplitude / amp_maxn;
+    if (ratio > 1.0f) ratio = 1.0f;
+
+    if (ratio <= 0.05f) {
+        Turn_off_all_at_once();
+        return;
+    }
+
+    int total_leds_to_light = (int)(ratio * MAX_LED);
+    if (total_leds_to_light < 1) total_leds_to_light = 1;
+
+    // Get color based on frequency
+    uint8_t r, g, b;
+    frequency_to_full_spectrum(peak_freq, &r, &g, &b);
+
+    // Clear all LEDs first
+    Turn_off_all_at_once();
+
+    // Light LEDs from center outward
+    int center = MAX_LED / 2;
+    int leds_per_side = total_leds_to_light / 2;
+
+    // Light center LED if odd number
+    if (total_leds_to_light % 2 == 1) {
+        Set_LED(center, r, g, b);
+    }
+
+    // Light LEDs on both sides of center
+    for (int i = 1; i <= leds_per_side; i++) {
+        if (center - i >= 0) {
+            Set_LED(center - i, r, g, b);
+        }
+        if (center + i < MAX_LED) {
+            Set_LED(center + i, r, g, b);
+        }
+    }
+
+    int brightness = 5 + (int)(ratio * (NORMAL_BRIGHTNESS - 5));
+    Set_Brightness(brightness);
+    WS2812_Send();
+}
+
+void effect_spectrum_color_bands(uint16_t amplitude, uint16_t peak_freq) {
+    float ratio = (float)amplitude / amp_maxn;
+    if (ratio > 1.0f) ratio = 1.0f;
+
+    if (ratio <= 0.05f) {
+        Turn_off_all_at_once();
+        return;
+    }
+
+    // Define frequency bands and LED sections
+    int low_start = 0;
+    int low_end = MAX_LED / 3;
+    int mid_start = low_end;
+    int mid_end = (MAX_LED * 2) / 3;
+    int high_start = mid_end;
+    int high_end = MAX_LED;
+
+    // Clear all LEDs
+    Turn_off_all_at_once();
+
+    // Determine which band the peak frequency falls into
+    uint8_t r = 0, g = 0, b = 0;
+    int start_led = 0, end_led = 0;
+
+    if (peak_freq <= 250) {
+        // Low frequency band - Red
+        frequency_to_full_spectrum(peak_freq, &r, &g, &b);
+        start_led = low_start;
+        end_led = low_end;
+    } else if (peak_freq <= 2000) {
+        // Mid frequency band - Green
+    	frequency_to_full_spectrum(peak_freq, &r, &g, &b);
+        start_led = mid_start;
+        end_led = mid_end;
+    } else {
+        // High frequency band - Blue
+    	frequency_to_full_spectrum(peak_freq, &r, &g, &b);
+        start_led = high_start;
+        end_led = high_end;
+    }
+
+    // Light up the appropriate section
+    for (int i = start_led; i < end_led; i++) {
+        Set_LED(i, r, g, b);
+    }
+
+    int brightness = 5 + (int)(ratio * (NORMAL_BRIGHTNESS - 5));
+    Set_Brightness(brightness);
+    WS2812_Send();
+}
+
+// Structure to hold pulse data
+typedef struct {
+    int position;           // Current position of pulse
+    uint8_t r, g, b;       // Color of pulse
+    uint8_t brightness;    // Brightness of pulse
+    uint8_t length;        // Length of pulse in LEDs
+    uint8_t active;        // Whether pulse is active
+} Pulse;
+
+#define MAX_PULSES 8
+static Pulse pulses[MAX_PULSES];
+static uint16_t last_amp = 0;
+static uint32_t last_pulse_time = 0;
+
+void effect_frequency_chase_gradient(uint16_t amplitude, uint16_t peak_freq) {
+    const uint16_t BEAT_THRESHOLD = 800;  // Adjust based on your amp_maxn
+    const uint32_t MIN_PULSE_INTERVAL = 100; // Minimum time between pulses (ms)
+
+    uint32_t current_time = HAL_GetTick();
+
+    // Beat detection: amplitude spike above threshold
+    if (amplitude > BEAT_THRESHOLD &&
+        amplitude > (last_amp + 200) &&
+        (current_time - last_pulse_time) > MIN_PULSE_INTERVAL) {
+
+        // Find an inactive pulse slot
+        for (int i = 0; i < MAX_PULSES; i++) {
+            if (!pulses[i].active) {
+                // Initialize new pulse
+                pulses[i].position = 0;
+                frequency_to_full_spectrum(peak_freq, &pulses[i].r, &pulses[i].g, &pulses[i].b);
+
+                float ratio = (float)amplitude / amp_maxn;
+                if (ratio > 1.0f) ratio = 1.0f;
+
+                pulses[i].brightness = (uint8_t)(ratio * 255);
+                pulses[i].length = 3 + (uint8_t)(ratio * 8); // 3-11 LEDs long
+                pulses[i].active = 1;
+
+                last_pulse_time = current_time;
+                break;
+            }
+        }
+    }
+
+    // Clear all LEDs
+    Turn_off_all_at_once();
+
+    // Update and draw all active pulses
+    for (int i = 0; i < MAX_PULSES; i++) {
+        if (pulses[i].active) {
+            // Draw pulse with fade-out trail
+            for (int j = 0; j < pulses[i].length; j++) {
+                int led_pos = pulses[i].position - j;
+                if (led_pos >= 0 && led_pos < MAX_LED) {
+                    // Calculate fade factor for trail
+                    float fade = 1.0f - ((float)j / pulses[i].length);
+                    uint8_t r = (uint8_t)(pulses[i].r * fade);
+                    uint8_t g = (uint8_t)(pulses[i].g * fade);
+                    uint8_t b = (uint8_t)(pulses[i].b * fade);
+
+                    // Blend with existing LED color (simple additive)
+                    uint8_t existing_r = LED_Data[led_pos][2];
+                    uint8_t existing_g = LED_Data[led_pos][1];
+                    uint8_t existing_b = LED_Data[led_pos][3];
+
+                    r = (r + existing_r > 255) ? 255 : r + existing_r;
+                    g = (g + existing_g > 255) ? 255 : g + existing_g;
+                    b = (b + existing_b > 255) ? 255 : b + existing_b;
+
+                    Set_LED(led_pos, r, g, b);
+                }
+            }
+
+            // Move pulse forward
+            pulses[i].position++;
+
+            // Deactivate pulse if it's moved off the strip
+            if (pulses[i].position >= MAX_LED + pulses[i].length) {
+                pulses[i].active = 0;
+            }
+        }
+    }
+
+    Set_Brightness(NORMAL_BRIGHTNESS);
+    WS2812_Send();
+
+    last_amp = amplitude;
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -468,7 +727,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  srand(HAL_GetTick());
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -495,13 +754,14 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
-  calculate_middle_point();
+
 
   HAL_TIM_Base_Start(&htim2);
   HAL_ADC_Start_IT(&hadc1);
   arm_rfft_fast_init_f32(&fftHandler, FFT_BUFFER_SIZE);
 
   float	peakVal	= 0.0f;
+  HAL_Delay(50);
 
 
   /* USER CODE END 2 */
@@ -510,35 +770,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-
-//      if (!led_is_on && amp > 700)
-//      {
-//          led_on_start = HAL_GetTick();
-//          led_is_on    = true;
-//      }
-//
-//      /* While led_is_on, run effect; after 50 ms, stop --- */
-//      if (led_is_on)
-//      {
-//          sound_bar_hue_gradient(amp);
-//
-//          if ((HAL_GetTick() - led_on_start) >= 50)
-//          {
-//              Turn_off_all_at_once();
-//              WS2812_Send();
-//              led_is_on = false;
-//          }
-//      }
-//      else
-//      {
-//          Turn_off_all_at_once();
-//          WS2812_Send();
-//      }
-//
-
-
-
-
 
 /////////////////////////////////////////////////////////////////////////////////////////
 // DEO DUOC DONG VAO
@@ -554,14 +785,42 @@ int main(void)
 					  if (mag > peakVal) {
 						  peakVal = mag;
 						  peakHz  = (uint16_t)(k  * SAMPLE_RATE_HZ / (float)(FFT_BUFFER_SIZE));
-						  freq = peakHz;
 					  }
 				  }
 
 				  fftReady = 0;
 		  }
+/////////////////////////////////////////////////////////////////////////////////////////
+// CODE HIEU UNG BAT DAU TU DAY
+//		        if (!led_is_on && amp > 700)
+//		        {
+//		            led_on_start = HAL_GetTick();
+//		            led_is_on    = true;
+//		        }
+//
+//		        /* While led_is_on, run effect; after 50 ms, stop --- */
+//		        if (led_is_on)
+//		        {
+//		            sound_bar_hue_gradient(amp);
+//
+//		            if ((HAL_GetTick() - led_on_start) >= 50)
+//		            {
+//		                Turn_off_all_at_once();
+//		                WS2812_Send();
+//		                led_is_on = false;
+//		            }
+//		        }
+//		        else
+//		        {
+//		            Turn_off_all_at_once();
+//		            WS2812_Send();
+//		        }
 
-	  HAL_Delay(1);
+		  //effect_flash_fade_random_color(amp, peakHz);
+		  //effect_dynamic_vu_meter(amp, peakHz);
+		  //effect_spectrum_color_bands(amp, peakHz);
+		  effect_frequency_chase_gradient(amp, peakHz);
+	  HAL_Delay(2);
 /////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -843,10 +1102,24 @@ static void MX_GPIO_Init(void)
 //
 //// Called when second half of adc_buf is filled by DMA (another 32 samples)
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
+
 	if (hadc->Instance == ADC1)
 	    {
-	        amp = abs(HAL_ADC_GetValue(&hadc1) - middle_point);
-	        record_sample_and_maybe_runFFT();
+			if ( middle_point_index > 0){
+				middle_point += HAL_ADC_GetValue(&hadc1);
+				middle_point_index = middle_point_index - 1;
+			}
+
+			else if (middle_point_index == 0){
+				middle_point/= 32;
+				middle_point_index = middle_point_index - 1;
+			}
+			else{
+				record_sample_and_maybe_runFFT();
+			}
+
+	        amp = abs(HAL_ADC_GetValue(&hadc1) - (uint16_t)middle_point);
+
 	        // process “raw” or store into buffer or set a flag, etc.
 	    }
 
