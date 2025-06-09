@@ -42,7 +42,7 @@
 #define MAX_LED 54
 
 #define MAX_BRIGHTNESS 45
-#define NORMAL_BRIGHTNESS 20
+#define NORMAL_BRIGHTNESS 25
 #define USE_BRIGHTNESS 1
 
 // for FFT
@@ -50,6 +50,9 @@
 #define SAMPLE_RATE_HZ 14400.0f
 #define UINT16_TO_FLOAT 0.00001525879f
 
+//for button
+#define BUTTON_GPIO_PORT GPIOE
+#define BUTTON_PIN GPIO_PIN_11
 
 
 /* USER CODE END PD */
@@ -67,6 +70,10 @@ TIM_HandleTypeDef htim2;
 DMA_HandleTypeDef hdma_tim1_ch1;
 
 /* USER CODE BEGIN PV */
+
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////LED control////////////////////////////////////////////
+uint8_t brightness_mode = NORMAL_BRIGHTNESS;
 uint16_t LED_DURATION_MS = 100;
 uint16_t amp = 0;
 bool led_is_on = false;
@@ -89,13 +96,18 @@ uint8_t colors[7][3] = {
     {148, 0, 211}    // Violet
 };
 
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////Sound intensity control////////////////////////////////
+
 int16_t middle_point_index = 32;
 uint32_t middle_point = 0;
 
 int amp_maxn = 1600; 	// Noise
 int amp_maxq = 1000;	// Quiet
 
-// for FFT
+
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////Frequency control (FFT)////////////////////////////////
 uint16_t peakHz = 0;
 arm_rfft_fast_instance_f32 fftHandler;
 float fftBufIn[FFT_BUFFER_SIZE];
@@ -119,12 +131,10 @@ static void MX_TIM2_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-
-void record_sample_and_maybe_runFFT(void) {
+void record_sample_and_maybe_runFFT(uint16_t raw) {
     // Convert raw 12‐bit ADC (0..4095) to float in [-1,+1], after centering around middle_point
-	uint16_t raw_adc = HAL_ADC_GetValue(&hadc1);
 
-    float centered = ((float)(raw_adc - (uint16_t)(middle_point))) * UINT16_TO_FLOAT;
+    float centered = ((float)(raw - (uint16_t)(middle_point))) * UINT16_TO_FLOAT;
     fftBufIn[fftIndex] = centered;
     fftIndex++;
 
@@ -136,12 +146,6 @@ void record_sample_and_maybe_runFFT(void) {
         fftIndex = 0; // reset buffer index to record next block
     }
 }
-
-
-
-
-
-
 
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
     if (htim == &htim1) {
@@ -492,7 +496,7 @@ void effect_random_one_in_six_leds_by_sound(uint16_t amplitude) {
 
 #define AMP_THRESHOLD 1000     // Amplitude threshold to detect a beat
 #define FADE_DURATION_MS 500   // Fade duration in milliseconds
-void effect_flash_fade_random_color(uint16_t amp, uint16_t peakHz) {
+void effect_flash_fade_random_color(uint16_t amp, uint16_t peakHz, uint8_t brightness_mode) {
     static uint32_t last_flash_time = 0;  // Time of the last flash
 
     uint32_t current_time = HAL_GetTick();  // Current time in milliseconds
@@ -521,8 +525,8 @@ void effect_flash_fade_random_color(uint16_t amp, uint16_t peakHz) {
     if (elapsed_time >= FADE_DURATION_MS) {
         brightness = 0;  // Fully faded out
     } else {
-        // Linear fade: brightness decreases from NORMAL_BRIGHTNESS to 0
-        brightness = NORMAL_BRIGHTNESS - (NORMAL_BRIGHTNESS * elapsed_time) / FADE_DURATION_MS;
+        // Linear fade: brightness decreases from BRIGHTNESS_MODE to 0
+        brightness = brightness_mode - (brightness_mode * elapsed_time) / FADE_DURATION_MS;
     }
 
     // Apply the calculated brightness to the LEDs
@@ -532,7 +536,7 @@ void effect_flash_fade_random_color(uint16_t amp, uint16_t peakHz) {
     WS2812_Send();
 }
 
-void effect_dynamic_vu_meter(uint16_t amplitude, uint16_t peak_freq) {
+void effect_dynamic_vu_meter(uint16_t amplitude, uint16_t peak_freq, uint8_t brightness_mode) {
     // Calculate ratio and number of LEDs to light
     float ratio = (float)amplitude / amp_maxn;
     if (ratio > 1.0f) ratio = 1.0f;
@@ -571,12 +575,12 @@ void effect_dynamic_vu_meter(uint16_t amplitude, uint16_t peak_freq) {
         }
     }
 
-    int brightness = 5 + (int)(ratio * (NORMAL_BRIGHTNESS - 5));
+    int brightness = 5 + (int)(ratio * (brightness_mode - 5));
     Set_Brightness(brightness);
     WS2812_Send();
 }
 
-void effect_spectrum_color_bands(uint16_t amplitude, uint16_t peak_freq) {
+void effect_spectrum_color_bands(uint16_t amplitude, uint16_t peak_freq, uint8_t brightness_mode) {
     float ratio = (float)amplitude / amp_maxn;
     if (ratio > 1.0f) ratio = 1.0f;
 
@@ -622,7 +626,7 @@ void effect_spectrum_color_bands(uint16_t amplitude, uint16_t peak_freq) {
         Set_LED(i, r, g, b);
     }
 
-    int brightness = 5 + (int)(ratio * (NORMAL_BRIGHTNESS - 5));
+    int brightness = 5 + (int)(ratio * (brightness_mode - 5));
     Set_Brightness(brightness);
     WS2812_Send();
 }
@@ -641,7 +645,7 @@ static Pulse pulses[MAX_PULSES];
 static uint16_t last_amp = 0;
 static uint32_t last_pulse_time = 0;
 
-void effect_frequency_chase_gradient(uint16_t amplitude, uint16_t peak_freq) {
+void effect_frequency_chase_gradient(uint16_t amplitude, uint16_t peak_freq, uint8_t brightness_mode) {
     const uint16_t BEAT_THRESHOLD = 800;  // Adjust based on your amp_maxn
     const uint32_t MIN_PULSE_INTERVAL = 100; // Minimum time between pulses (ms)
 
@@ -711,10 +715,71 @@ void effect_frequency_chase_gradient(uint16_t amplitude, uint16_t peak_freq) {
         }
     }
 
-    Set_Brightness(NORMAL_BRIGHTNESS);
+    Set_Brightness(brightness_mode);
     WS2812_Send();
 
     last_amp = amplitude;
+}
+
+void effect_rainbow_roll(uint16_t amplitude, uint16_t peak_freq, uint8_t brightness_mode) {
+    static float offset = 0.0f;
+
+    float ratio = (float)amplitude / amp_maxn;
+    if (ratio > 1.0f) ratio = 1.0f;
+
+    // Cập nhật offset dựa vào tần số đỉnh
+    offset += ((float)peak_freq / 100.0f);  // tốc độ cuộn
+    if (offset >= 360.0f) offset -= 360.0f;
+
+    for (int i = 0; i < MAX_LED; i++) {
+        float hue = fmodf(offset + (i * (360.0f / MAX_LED)), 360.0f);
+        uint8_t r, g, b;
+        HSV_to_RGB(hue, 1.0f, ratio, &r, &g, &b);
+        Set_LED(i, r, g, b);
+    }
+
+    int brightness = 5 + (int)(ratio * (brightness_mode - 5));
+    Set_Brightness(brightness);
+    WS2812_Send();
+}
+
+#define BASS_THRESHOLD 1200		// tăng để LED sáng hơn
+#define BASS_FADE_MS 300		// tăng để LED tắt chậm hơn
+
+void effect_bass_pulse_glow(uint16_t amplitude, uint16_t peak_freq, uint8_t brightness_mode) {
+    static uint32_t last_bass_time = 0;
+    static float hue = 0.0f;
+    uint32_t now = HAL_GetTick();
+
+    // Nếu là bass mạnh → cập nhật thời gian và màu sắc (hue)
+    if (peak_freq <= 250 && amplitude > BASS_THRESHOLD) {
+        last_bass_time = now;
+
+        hue += 30.0f;  // Tăng hue để chuyển màu theo dải cầu vồng
+        if (hue >= 360.0f) hue -= 360.0f;
+    }
+
+    // Tính độ sáng fade theo thời gian kể từ lần bass gần nhất
+    uint32_t elapsed = now - last_bass_time;
+    int brightness;
+
+    if (elapsed >= BASS_FADE_MS) {
+        brightness = 0;
+    } else {
+        brightness = brightness_mode - (brightness_mode * elapsed) / BASS_FADE_MS;
+    }
+
+    // Chuyển hue → RGB
+    uint8_t r, g, b;
+    HSV_to_RGB(hue, 1.0f, 1.0f, &r, &g, &b);  // Độ sáng sẽ được điều chỉnh sau bằng Set_Brightness()
+
+    // Set toàn bộ LED thành màu đang có
+    for (int i = 0; i < MAX_LED; i++) {
+        Set_LED(i, r, g, b);
+    }
+
+    Set_Brightness(brightness);
+    WS2812_Send();
 }
 
 /* USER CODE END 0 */
@@ -728,6 +793,9 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
   srand(HAL_GetTick());
+  uint8_t mode_button_index = 0;
+  uint8_t brightness_button_count = 0;
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -759,76 +827,70 @@ int main(void)
   HAL_TIM_Base_Start(&htim2);
   HAL_ADC_Start_IT(&hadc1);
   arm_rfft_fast_init_f32(&fftHandler, FFT_BUFFER_SIZE);
+  HAL_Delay(50); // delay de co thoi gian de lay sample offset_point
 
   float	peakVal	= 0.0f;
-  HAL_Delay(50);
+
+
 
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+	  while (1)
+	  {
 
-/////////////////////////////////////////////////////////////////////////////////////////
-// DEO DUOC DONG VAO
-		  if (fftReady){
-			  peakVal = 0.0f;
-			  peakHz = 0.0f;
+	/////////////////////////////////////////////////////////////////////////////////////////
+	// FFT process
+			  if (fftReady){
+				  peakVal = 0.0f;
+				  peakHz = 0.0f;
 
-			  uint16_t halfBins = FFT_BUFFER_SIZE / 2;
-				  for (uint16_t k = 1; k < halfBins; k++) {
-					  float re = fftBufOut[2 * k];
-					  float im = fftBufOut[2 * k + 1];
-					  float mag = sqrtf(re * re + im * im);
-					  if (mag > peakVal) {
-						  peakVal = mag;
-						  peakHz  = (uint16_t)(k  * SAMPLE_RATE_HZ / (float)(FFT_BUFFER_SIZE));
+				  uint16_t halfBins = FFT_BUFFER_SIZE / 2;
+					  for (uint16_t k = 1; k < halfBins; k++) {
+						  float re = fftBufOut[2 * k];
+						  float im = fftBufOut[2 * k + 1];
+						  float mag = sqrtf(re * re + im * im);
+						  if (mag > peakVal) {
+							  peakVal = mag;
+							  peakHz  = (uint16_t)(k  * SAMPLE_RATE_HZ / (float)(FFT_BUFFER_SIZE));
+						  }
 					  }
-				  }
 
-				  fftReady = 0;
-		  }
-/////////////////////////////////////////////////////////////////////////////////////////
-// CODE HIEU UNG BAT DAU TU DAY
-//		        if (!led_is_on && amp > 700)
-//		        {
-//		            led_on_start = HAL_GetTick();
-//		            led_is_on    = true;
-//		        }
-//
-//		        /* While led_is_on, run effect; after 50 ms, stop --- */
-//		        if (led_is_on)
-//		        {
-//		            sound_bar_hue_gradient(amp);
-//
-//		            if ((HAL_GetTick() - led_on_start) >= 50)
-//		            {
-//		                Turn_off_all_at_once();
-//		                WS2812_Send();
-//		                led_is_on = false;
-//		            }
-//		        }
-//		        else
-//		        {
-//		            Turn_off_all_at_once();
-//		            WS2812_Send();
-//		        }
+					  fftReady = 0;
+			  }
+	/////////////////////////////////////////////////////////////////////////////////////////
+	// Effects
+			  if(HAL_GPIO_ReadPin(MODE_BUTTON_GPIO_Port, MODE_BUTTON_Pin) == 0)
+			  {
+				  while(HAL_GPIO_ReadPin(MODE_BUTTON_GPIO_Port, MODE_BUTTON_Pin) == 0) {}
+				  mode_button_index = (mode_button_index + 1) % 6;
+			  }
+			  switch (mode_button_index) {
+			  	  case 0: effect_flash_fade_random_color(amp, peakHz, brightness_mode); break;
+			  	  case 1: effect_dynamic_vu_meter(amp, peakHz, brightness_mode); break;
+			  	  case 2: effect_spectrum_color_bands(amp, peakHz, brightness_mode); break;
+			  	  case 3: effect_frequency_chase_gradient(amp, peakHz, brightness_mode); break;
+			  	  case 4: effect_rainbow_roll(amp, peakHz, brightness_mode); break;
+			  	  case 5: effect_bass_pulse_glow(amp, peakHz, brightness_mode); break;
+			  	  default: effect_flash_fade_random_color(amp, peakHz, brightness_mode); break;
+			  }
 
-		  //effect_flash_fade_random_color(amp, peakHz);
-		  //effect_dynamic_vu_meter(amp, peakHz);
-		  //effect_spectrum_color_bands(amp, peakHz);
-		  effect_frequency_chase_gradient(amp, peakHz);
-	  HAL_Delay(2);
-/////////////////////////////////////////////////////////////////////////////////////////
+			  if(HAL_GPIO_ReadPin(BRIGHTNESS_MODE_BUTTON_GPIO_Port, BRIGHTNESS_MODE_BUTTON_Pin) == 0){
+				  while(HAL_GPIO_ReadPin(BRIGHTNESS_MODE_BUTTON_GPIO_Port, BRIGHTNESS_MODE_BUTTON_Pin) == 0) {}
+				  brightness_mode = (uint8_t)((float)MAX_BRIGHTNESS * ((25.0f * (float)brightness_button_count) / 100.0f));
+				  brightness_button_count = (brightness_button_count + 1) % 5;
+			  }
+		  HAL_Delay(2);
+	/////////////////////////////////////////////////////////////////////////////////////////
 
 
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+	  }
   /* USER CODE END 3 */
 }
 
@@ -1073,6 +1135,7 @@ static void MX_DMA_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
 
   /* USER CODE END MX_GPIO_Init_1 */
@@ -1081,8 +1144,19 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
 
+  /*Configure GPIO pin : MODE_BUTTON_Pin */
+  GPIO_InitStruct.Pin = MODE_BUTTON_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(MODE_BUTTON_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : BRIGHTNESS_MODE_BUTTON_Pin */
+  GPIO_InitStruct.Pin = BRIGHTNESS_MODE_BUTTON_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(BRIGHTNESS_MODE_BUTTON_GPIO_Port, &GPIO_InitStruct);
+
   /* USER CODE BEGIN MX_GPIO_Init_2 */
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
      GPIO_InitStruct.Pin  = GPIO_PIN_0;
      GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
      GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -1091,36 +1165,32 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-//void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc) {
-//    if (hadc == &hadc1) {
-//        uint16_t amp = process_buffer(adc_buf, ADC_BUF_LEN/2);
-//        uint8_t br  = map_amplitude_to_brightness(amp, dynamic_threshold);
-//        Set_Brightness(br);
-//        WS2812_Send();
-//    }
-//}
-//
-//// Called when second half of adc_buf is filled by DMA (another 32 samples)
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
 
 	if (hadc->Instance == ADC1)
 	    {
+
+			uint16_t raw = HAL_ADC_GetValue(&hadc1);
+
+			// Tinh toan middle point tu 32 sample dau tien
 			if ( middle_point_index > 0){
-				middle_point += HAL_ADC_GetValue(&hadc1);
-				middle_point_index = middle_point_index - 1;
+				middle_point += raw;
+				middle_point_index--;
 			}
 
 			else if (middle_point_index == 0){
 				middle_point/= 32;
-				middle_point_index = middle_point_index - 1;
+				middle_point_index--;
 			}
+
 			else{
-				record_sample_and_maybe_runFFT();
+			// Ghi sample vao fftBufIn
+				record_sample_and_maybe_runFFT(raw);
 			}
 
-	        amp = abs(HAL_ADC_GetValue(&hadc1) - (uint16_t)middle_point);
+	        amp = abs(raw - (uint16_t)middle_point);
 
-	        // process “raw” or store into buffer or set a flag, etc.
+
 	    }
 
 }
