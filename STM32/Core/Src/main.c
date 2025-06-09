@@ -70,6 +70,9 @@ TIM_HandleTypeDef htim2;
 DMA_HandleTypeDef hdma_tim1_ch1;
 
 /* USER CODE BEGIN PV */
+
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////LED control////////////////////////////////////////////
 uint8_t brightness_mode = NORMAL_BRIGHTNESS;
 uint16_t LED_DURATION_MS = 100;
 uint16_t amp = 0;
@@ -93,13 +96,18 @@ uint8_t colors[7][3] = {
     {148, 0, 211}    // Violet
 };
 
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////Sound intensity control////////////////////////////////
+
 int16_t middle_point_index = 32;
 uint32_t middle_point = 0;
 
 int amp_maxn = 1600; 	// Noise
 int amp_maxq = 1000;	// Quiet
 
-// for FFT
+
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////Frequency control (FFT)////////////////////////////////
 uint16_t peakHz = 0;
 arm_rfft_fast_instance_f32 fftHandler;
 float fftBufIn[FFT_BUFFER_SIZE];
@@ -123,11 +131,10 @@ static void MX_TIM2_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-void record_sample_and_maybe_runFFT(void) {
+void record_sample_and_maybe_runFFT(uint16_t raw) {
     // Convert raw 12‐bit ADC (0..4095) to float in [-1,+1], after centering around middle_point
-	uint16_t raw_adc = HAL_ADC_GetValue(&hadc1);
 
-    float centered = ((float)(raw_adc - (uint16_t)(middle_point))) * UINT16_TO_FLOAT;
+    float centered = ((float)(raw - (uint16_t)(middle_point))) * UINT16_TO_FLOAT;
     fftBufIn[fftIndex] = centered;
     fftIndex++;
 
@@ -139,7 +146,6 @@ void record_sample_and_maybe_runFFT(void) {
         fftIndex = 0; // reset buffer index to record next block
     }
 }
-
 
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
     if (htim == &htim1) {
@@ -821,9 +827,11 @@ int main(void)
   HAL_TIM_Base_Start(&htim2);
   HAL_ADC_Start_IT(&hadc1);
   arm_rfft_fast_init_f32(&fftHandler, FFT_BUFFER_SIZE);
+  HAL_Delay(50); // delay de co thoi gian de lay sample offset_point
 
   float	peakVal	= 0.0f;
-  HAL_Delay(50);
+
+
 
 
   /* USER CODE END 2 */
@@ -834,7 +842,7 @@ int main(void)
 	  {
 
 	/////////////////////////////////////////////////////////////////////////////////////////
-	// KHONG DUOC DONG VAO
+	// FFT process
 			  if (fftReady){
 				  peakVal = 0.0f;
 				  peakHz = 0.0f;
@@ -853,7 +861,7 @@ int main(void)
 					  fftReady = 0;
 			  }
 	/////////////////////////////////////////////////////////////////////////////////////////
-	// CODE HIEU UNG BAT DAU TU DAY
+	// Effects
 			  if(HAL_GPIO_ReadPin(MODE_BUTTON_GPIO_Port, MODE_BUTTON_Pin) == 0)
 			  {
 				  while(HAL_GPIO_ReadPin(MODE_BUTTON_GPIO_Port, MODE_BUTTON_Pin) == 0) {}
@@ -1157,36 +1165,32 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-//void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc) {
-//    if (hadc == &hadc1) {
-//        uint16_t amp = process_buffer(adc_buf, ADC_BUF_LEN/2);
-//        uint8_t br  = map_amplitude_to_brightness(amp, dynamic_threshold);
-//        Set_Brightness(br);
-//        WS2812_Send();
-//    }
-//}
-//
-//// Called when second half of adc_buf is filled by DMA (another 32 samples)
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
 
 	if (hadc->Instance == ADC1)
 	    {
+
+			uint16_t raw = HAL_ADC_GetValue(&hadc1);
+
+			// Tinh toan middle point tu 32 sample dau tien
 			if ( middle_point_index > 0){
-				middle_point += HAL_ADC_GetValue(&hadc1);
-				middle_point_index = middle_point_index - 1;
+				middle_point += raw;
+				middle_point_index--;
 			}
 
 			else if (middle_point_index == 0){
 				middle_point/= 32;
-				middle_point_index = middle_point_index - 1;
+				middle_point_index--;
 			}
+
 			else{
-				record_sample_and_maybe_runFFT();
+			// Ghi sample vao fftBufIn
+				record_sample_and_maybe_runFFT(raw);
 			}
 
-	        amp = abs(HAL_ADC_GetValue(&hadc1) - (uint16_t)middle_point);
+	        amp = abs(raw - (uint16_t)middle_point);
 
-	        // process “raw” or store into buffer or set a flag, etc.
+
 	    }
 
 }
