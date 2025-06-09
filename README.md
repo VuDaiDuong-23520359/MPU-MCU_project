@@ -2,11 +2,11 @@
 
 ## 1. 🔍 Tổng quan
 
-Tạo các hiệu ứng ánh sáng đầy màu sắc sử dụng vi điều khiển và LED RGB WS2812B (NeoPixel). Dự án này trình diễn nhiều hiệu ứng động như chuyển màu gradient, sóng cầu vồng, đốm sáng chạy, và đồng bộ hóa với âm nhạc (tùy chọn).
+Tạo các hiệu ứng ánh sáng đầy màu sắc sử dụng vi điều khiển và LED RGB WS2812B (NeoPixel). Dự án này trình diễn nhiều hiệu ứng động đồng bộ hóa với âm nhạc.
 
 ### ✨ Tính năng
 
-* Điều khiến LEDs theo cường độ âm thanh của bài nhạc
+* Điều khiến LEDs theo cường độ & tần số âm thanh của bài nhạc
 
 ## 2. 💡 Tại sao chọn NeoPixel?
 
@@ -19,11 +19,10 @@ Tạo các hiệu ứng ánh sáng đầy màu sắc sử dụng vi điều khi�
 | Thành phần                      | Mô tả                                                                      |
 | ------------------------------- | -------------------------------------------------------------------------- |
 | 🧠 Vi điều khiển                | STM32F407VET6                                                              |
-| 💡 Dải LED WS2812B              | W2812B 54-LEDs                                                             |
+| 💡 Dải LED WS2812B              | W2812B 54LEDs                                                              |
 | 🔋 Nguồn cấp                    | 5V                                                                         |
-| 🎤 Module âm thanh *(tùy chọn)* | MAX9814 - mạch khuếch đại âm thanh                                         |
-| 🔘 Nút bấm/Encoder              | Chuyển chế độ, chỉnh tốc độ, độ sáng,... (đang phát triển)                 |
-| 💻 Màn hình OLED *(tùy chọn)*   | OLED I2C 0.96" để hiển thị menu, tên hiệu ứng (đang phát triển)            |
+| 🎤 Module âm thanh              | MAX9814 - mạch khuếch đại âm thanh                                         |
+| 🔘 Nút bấm/Encoder              | Module nút bấm 12x12 (2 cái) - Chuyển chế độ & Điều chỉnh độ sáng          |
 
 ## 4. ⚙️ Chức năng chính
 
@@ -35,18 +34,25 @@ Tạo các hiệu ứng ánh sáng đầy màu sắc sử dụng vi điều khi�
 
 ### 🌟 B. Các hiệu ứng
 
-| Hiệu ứng      | Mô tả                                   |
-| ------------- | --------------------------------------- |
-| 🔁 Soundbar    | Số LED sáng dựa trên cường độ âm thanh  |
-| 💨 Pixel chạy  | Một hoặc nhiều đốm sáng di chuyển       |
-| ⚡ Nhấp nháy   | LED chớp nhanh theo chu kỳ              |
+| **Hiệu ứng**         | **Mô tả**                                                                                        | **Dựa vào**                  |
+| -------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------- |
+| **Sound Color**      | LED đổi màu và độ sáng theo âm lượng, tạo hiệu ứng “nhiệt độ âm thanh”                           | Âm lượng                     |
+| **Ripple**           | Hiệu ứng gợn sóng lan từ giữa dải LED, độ sáng giảm dần theo khoảng cách                         | Âm lượng                     |
+| **Sound Bar**        | Hiển thị thanh VU meter với gradient màu từ tím đến đỏ                                           | Âm lượng                     |
+| **Random 1/6 LEDs**  | Mỗi nhóm 6 LED sẽ ngẫu nhiên sáng 1 LED, nhấp nháy theo nhạc                                     | Âm lượng                     |
+| **Flash Fade**       | Mỗi khi phát hiện beat mạnh, toàn dải đổi màu ngẫu nhiên rồi mờ dần                              | Tần số đỉnh (Beat)           |
+| **Dynamic VU Meter** | Tăng dần số lượng LED từ trung tâm ra 2 bên; màu theo tần số                                     | Âm lượng & Tần số            |
+| **Spectrum Bands**   | Dải LED chia 3 vùng: bass (trái), mid (giữa), treble (phải); sáng vùng tương ứng với tần số đỉnh | Tần số                       |
+| **Frequency Chase**  | Mỗi beat tạo một dải sáng di chuyển từ đầu dải LED, màu sắc theo tần số đỉnh                     | Tần số đỉnh & Beat           |
+| **Rainbow Roll**     | Dải màu cầu vồng cuộn đều, tốc độ phụ thuộc tần số đỉnh                                          | Tần số đỉnh                  |
+| **Bass Pulse Glow**  | Khi phát hiện bass mạnh, cả dải LED sáng lên theo màu cầu vồng rồi mờ dần                        | Bass (tần số thấp & biên độ) |
 
-### 🔘 C. Chuyển đổi hiệu ứng (Đang phát triển)
+### 🔘 C. Chuyển đổi hiệu ứng 
 
 * Nút "Mode": chuyển đổi hiệu ứng
-* Nút "Next": thay đổi màu chủ đạo, tốc độ, v.v.
+* Nút "BrightNess": Điều chỉnh độ sáng 
 
-## 5. 🎶 Hiển thị theo nhạc *(tùy chọn nâng cao)*
+## 5. 🎶 Hiển thị theo nhạc 
 
 ### 📥 A. Nhận tín hiệu âm thanh
 
@@ -55,14 +61,14 @@ Tạo các hiệu ứng ánh sáng đầy màu sắc sử dụng vi điều khi�
 
 ### 🎨 B. Phản ứng ánh sáng
 
-* Âm lớn → LED sáng mạnh hoặc màu nóng
-* Âm nhỏ → LED dịu hoặc chuyển màu lạnh
+* Âm lớn → LED sáng mạnh, màu nóng
+* Âm nhỏ → LED dịu, màu lạnh
 
-### 🧠 C. Phân tích tần số (FFT) (Đang phát triển)
+### 🧠 C. Phân tích tần số (FFT) 
 
 * Chia dải LED theo tần số: Bass / Mid / Treble
 * Mỗi phần LED hiển thị một dải tần riêng
-* Yêu cầu vi điều khiển mạnh (STM32F4, ESP32,...)
+* Sử dụng Timer2 trigger ADC1
 
 ## 6. 📢 Giao thức điều khiển WS2812B
 
