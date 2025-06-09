@@ -60,8 +60,8 @@ all: main-build
 main-build: STM32.elf secondary-outputs
 
 # Tool invocations
-STM32.elf STM32.map: $(OBJS) $(USER_OBJS) D:\MPU-MCU_project-DesktopUIT\STM32\STM32F407VETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "STM32.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"D:\MPU-MCU_project-DesktopUIT\STM32\STM32F407VETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="STM32.map" -Wl,--gc-sections -static -L"D:\MPU-MCU_project-DesktopUIT\STM32\Lib" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+STM32.elf STM32.map: $(OBJS) $(USER_OBJS) D:\E\1subject\HK4\VXL_VDK\doan\MPU-MCU_project\STM32\STM32F407VETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "STM32.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"D:\E\1subject\HK4\VXL_VDK\doan\MPU-MCU_project\STM32\STM32F407VETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="STM32.map" -Wl,--gc-sections -static -L"D:\E\1subject\HK4\VXL_VDK\doan\MPU-MCU_project\STM32\Lib" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
