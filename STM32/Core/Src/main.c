@@ -154,7 +154,6 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
     }
 }
 
-
 void Set_LED (int LEDnum, int Red, int Green, int Blue)
 {
 	LED_Data[LEDnum][0] = LEDnum;
@@ -356,142 +355,6 @@ void frequency_to_full_spectrum(uint16_t freq, uint8_t* r, uint8_t* g, uint8_t* 
 
     HSV_to_RGB(hue, 1.0f, 1.0f, r, g, b);
 
-}
-
-void effect_sound_color() {
-    float ratio = (float)amp / amp_maxn;
-    if (ratio > 1.0) ratio = 1.0;
-    if (ratio <= 0.05f) {
-    	Turn_off_all_at_once();
-    	WS2812_Send();
-    	return;
-    }
-
-    int brightness = 5 + (int)(ratio * (NORMAL_BRIGHTNESS - 5));
-    Set_Brightness(brightness);
-
-    uint8_t r, g, b;
-
-    if (ratio < 0.5f) {
-        float t = ratio / 0.5f;
-        r = (uint8_t)(0 + t * (148 - 0));
-        g = 0;
-        b = (uint8_t)(255 + t * (211 - 255));
-    } else {
-        float t = (ratio - 0.5f) / 0.5f;
-        if (t < 0.5f) {
-            float t2 = t / 0.5f;
-            r = 255;
-            g = (uint8_t)(0 + t2 * (127 - 0));
-            b = 0;
-        } else {
-            float t2 = (t - 0.5f) / 0.5f;
-            r = 255;
-            g = (uint8_t)(127 + t2 * (255 - 127));
-            b = 0;
-        }
-    }
-
-    for (int i = 0; i < MAX_LED; i++) {
-        Set_LED(i, r, g, b);
-    }
-    WS2812_Send();
-}
-
-void ripple_effect(uint16_t amplitude) {
-    float ratio = (float)amplitude / amp_maxn;
-    if (ratio > 1.0f) ratio = 1.0f;
-
-    if (ratio <= 0.05f) {
-        Turn_off_all_at_once();
-        WS2812_Send();
-        return;
-    }
-
-    int center = MAX_LED / 2;
-    int spread = 1 + (int)(ratio * (MAX_LED / 2));
-
-    for (int i = 0; i < MAX_LED; i++) {
-        int dist = abs(i - center);
-        float brightness = 1.0f - ((float)dist / spread);
-        if (brightness < 0.0f) brightness = 0.0f;
-
-        // Get rainbow color based on position
-        uint8_t r, g, b;
-        get_rainbow_color(i, effStep, &r, &g, &b);
-
-        // Apply brightness modulation to color
-        Set_LED(i, (uint8_t)(r * brightness), (uint8_t)(g * brightness), (uint8_t)(b * brightness));
-    }
-
-    Set_Brightness(NORMAL_BRIGHTNESS);
-    WS2812_Send();
-
-    effStep = (effStep + 1) % 60;
-}
-
-
-void sound_bar_hue_gradient(uint16_t amplitude) {
-    static int current_led_count = 1;
-    int target_led_count;
-
-    float ratio = (float)amplitude / amp_maxn;
-    if (ratio > 1.0f) ratio = 1.0f;
-
-    target_led_count = (int)(ratio * MAX_LED);
-    if (target_led_count < 1) target_led_count = 1;
-
-    if (amplitude < 100 && current_led_count > 1) {
-        current_led_count--;
-    } else if (target_led_count > current_led_count) {
-        current_led_count++;
-    }
-
-    Turn_off_all_at_once();
-
-    for (int i = 0; i < current_led_count; i++) {
-        float t = (float)i / (current_led_count - 1);
-        float hue = 270.0f * (1.0f - t); // tím (270°) → đỏ (0°)
-
-        uint8_t r, g, b;
-        HSV_to_RGB(hue, 1.0f, 1.0f, &r, &g, &b);
-        Set_LED(i, r, g, b);
-    }
-
-    Set_Brightness(NORMAL_BRIGHTNESS);
-    WS2812_Send();
-}
-
-void effect_random_one_in_six_leds_by_sound(uint16_t amplitude) {
-    float ratio = (float)amplitude / amp_maxn;
-    if (ratio > 1.0f) ratio = 1.0f;
-
-    // Ignore low amplitude (silence)
-    if (ratio <= 0.05f) {
-        Turn_off_all_at_once();
-        WS2812_Send();
-        return;
-    }
-
-    Turn_off_all_at_once();
-
-    const int group_size = 6; //per n Led will have 1 random led lighted
-    for (int start = 0; start < MAX_LED; start += group_size) {
-        int rand_index = rand() % group_size;
-        int led_index = start + rand_index;
-        if (led_index >= MAX_LED) break;
-
-        // Optional: brighter when louder
-        uint8_t brightness = (uint8_t)(ratio * 255);
-        uint8_t r = brightness;
-        uint8_t g = rand() % brightness;
-        uint8_t b = rand() % brightness;
-
-        Set_LED(led_index, r, g, b);
-    }
-
-    Set_Brightness(5 + (int)(ratio * (NORMAL_BRIGHTNESS - 5)));
-    WS2812_Send();
 }
 
 #define AMP_THRESHOLD 1000     // Amplitude threshold to detect a beat
@@ -823,7 +686,6 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
 
-
   HAL_TIM_Base_Start(&htim2);
   HAL_ADC_Start_IT(&hadc1);
   arm_rfft_fast_init_f32(&fftHandler, FFT_BUFFER_SIZE);
@@ -838,8 +700,8 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-	  while (1)
-	  {
+  while (1)
+  {
 
 	/////////////////////////////////////////////////////////////////////////////////////////
 	// FFT process
@@ -862,8 +724,7 @@ int main(void)
 			  }
 	/////////////////////////////////////////////////////////////////////////////////////////
 	// Effects
-			  if(HAL_GPIO_ReadPin(MODE_BUTTON_GPIO_Port, MODE_BUTTON_Pin) == 0)
-			  {
+			  if(HAL_GPIO_ReadPin(MODE_BUTTON_GPIO_Port, MODE_BUTTON_Pin) == 0) {
 				  while(HAL_GPIO_ReadPin(MODE_BUTTON_GPIO_Port, MODE_BUTTON_Pin) == 0) {}
 				  mode_button_index = (mode_button_index + 1) % 6;
 			  }
@@ -877,7 +738,7 @@ int main(void)
 			  	  default: effect_flash_fade_random_color(amp, peakHz, brightness_mode); break;
 			  }
 
-			  if(HAL_GPIO_ReadPin(BRIGHTNESS_MODE_BUTTON_GPIO_Port, BRIGHTNESS_MODE_BUTTON_Pin) == 0){
+			  if(HAL_GPIO_ReadPin(BRIGHTNESS_MODE_BUTTON_GPIO_Port, BRIGHTNESS_MODE_BUTTON_Pin) == 0) {
 				  while(HAL_GPIO_ReadPin(BRIGHTNESS_MODE_BUTTON_GPIO_Port, BRIGHTNESS_MODE_BUTTON_Pin) == 0) {}
 				  brightness_mode = (uint8_t)((float)MAX_BRIGHTNESS * ((25.0f * (float)brightness_button_count) / 100.0f));
 				  brightness_button_count = (brightness_button_count + 1) % 5;
@@ -890,7 +751,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  }
+  }
   /* USER CODE END 3 */
 }
 

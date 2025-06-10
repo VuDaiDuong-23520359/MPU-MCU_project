@@ -29,29 +29,29 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   ALLOC
  12 .ARM.attributes 00000030  00000000  00000000  0001c070  2**0
                   CONTENTS, READONLY
- 13 .debug_info   0000f6ad  00000000  00000000  0001c0a0  2**0
+ 13 .debug_info   0000f38c  00000000  00000000  0001c0a0  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 14 .debug_abbrev 00002634  00000000  00000000  0002b74d  2**0
+ 14 .debug_abbrev 00002604  00000000  00000000  0002b42c  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 15 .debug_aranges 00000e08  00000000  00000000  0002dd88  2**3
+ 15 .debug_aranges 00000de0  00000000  00000000  0002da30  2**3
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 16 .debug_rnglists 00000a51  00000000  00000000  0002eb90  2**0
+ 16 .debug_rnglists 00000a21  00000000  00000000  0002e810  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 17 .debug_macro  00023302  00000000  00000000  0002f5e1  2**0
+ 17 .debug_macro  00023302  00000000  00000000  0002f231  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_line   00010866  00000000  00000000  000528e3  2**0
+ 18 .debug_line   000102fb  00000000  00000000  00052533  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .debug_str    000d947e  00000000  00000000  00063149  2**0
+ 19 .debug_str    000d93e7  00000000  00000000  0006282e  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 20 .comment      000000b3  00000000  00000000  0013c5c7  2**0
+ 20 .comment      000000b3  00000000  00000000  0013bc15  2**0
                   CONTENTS, READONLY
- 21 .debug_frame  00004368  00000000  00000000  0013c67c  2**2
+ 21 .debug_frame  000042b4  00000000  00000000  0013bcc8  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 22 .debug_line_str 00000042  00000000  00000000  001409e4  2**0
+ 22 .debug_line_str 00000063  00000000  00000000  0013ff7c  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 23 .debug_loc    00002a79  00000000  00000000  00140a26  2**0
+ 23 .debug_loc    00002a79  00000000  00000000  0013ffdf  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 24 .debug_ranges 00000060  00000000  00000000  0014349f  2**0
+ 24 .debug_ranges 00000060  00000000  00000000  00142a58  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 Disassembly of section .text:
@@ -584,10 +584,6 @@ void record_sample_and_maybe_runFFT(uint16_t raw) {
  80006e0:	20004e22 	.word	0x20004e22
 
 080006e4 <HAL_TIM_PWM_PulseFinishedCallback>:
-void calculate_middle_point(){
-
-}
-
 
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
  80006e4:	b580      	push	{r7, lr}
@@ -618,7 +614,6 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
  8000710:	20000378 	.word	0x20000378
 
 08000714 <Set_LED>:
-
 
 void Set_LED (int LEDnum, int Red, int Green, int Blue)
 {
@@ -1223,8 +1218,6 @@ void frequency_to_full_spectrum(uint16_t freq, uint8_t* r, uint8_t* g, uint8_t* 
  8000bb4:	43960000 	.word	0x43960000
 
 08000bb8 <effect_flash_fade_random_color>:
-    WS2812_Send();
-}
 
 #define AMP_THRESHOLD 1000     // Amplitude threshold to detect a beat
 #define FADE_DURATION_MS 500   // Fade duration in milliseconds
@@ -2507,7 +2500,6 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
 
-
   HAL_TIM_Base_Start(&htim2);
  800152e:	488d      	ldr	r0, [pc, #564]	@ (8001764 <main+0x26c>)
  8001530:	f002 fe3c 	bl	80041ac <HAL_TIM_Base_Start>
@@ -2518,18 +2510,18 @@ int main(void)
  800153a:	f44f 6100 	mov.w	r1, #2048	@ 0x800
  800153e:	488b      	ldr	r0, [pc, #556]	@ (800176c <main+0x274>)
  8001540:	f004 f90e 	bl	8005760 <arm_rfft_fast_init_f32>
-  HAL_Delay(50); // co thoi gian de lay sample offset_point
+  HAL_Delay(50); // delay de co thoi gian de lay sample offset_point
  8001544:	2032      	movs	r0, #50	@ 0x32
  8001546:	f000 fe85 	bl	8002254 <HAL_Delay>
 
   float	peakVal	= 0.0f;
  800154a:	f04f 0300 	mov.w	r3, #0
  800154e:	61bb      	str	r3, [r7, #24]
-	  while (1)
-	  {
+  while (1)
+  {
 
 	/////////////////////////////////////////////////////////////////////////////////////////
-	// KHONG DUOC DONG VAO
+	// FFT process
 			  if (fftReady){
  8001550:	4b87      	ldr	r3, [pc, #540]	@ (8001770 <main+0x278>)
  8001552:	781b      	ldrb	r3, [r3, #0]
@@ -2615,15 +2607,14 @@ int main(void)
  80015fe:	701a      	strb	r2, [r3, #0]
 			  }
 	/////////////////////////////////////////////////////////////////////////////////////////
-	// CODE HIEU UNG BAT DAU TU DAY
-			  if(HAL_GPIO_ReadPin(MODE_BUTTON_GPIO_Port, MODE_BUTTON_Pin) == 0)
+	// Effects
+			  if(HAL_GPIO_ReadPin(MODE_BUTTON_GPIO_Port, MODE_BUTTON_Pin) == 0) {
  8001600:	2110      	movs	r1, #16
  8001602:	4860      	ldr	r0, [pc, #384]	@ (8001784 <main+0x28c>)
  8001604:	f002 f906 	bl	8003814 <HAL_GPIO_ReadPin>
  8001608:	4603      	mov	r3, r0
  800160a:	2b00      	cmp	r3, #0
  800160c:	d115      	bne.n	800163a <main+0x142>
-			  {
 				  while(HAL_GPIO_ReadPin(MODE_BUTTON_GPIO_Port, MODE_BUTTON_Pin) == 0) {}
  800160e:	bf00      	nop
  8001610:	2110      	movs	r1, #16
@@ -2732,7 +2723,7 @@ int main(void)
  80016ea:	bf00      	nop
 			  }
 
-			  if(HAL_GPIO_ReadPin(BRIGHTNESS_MODE_BUTTON_GPIO_Port, BRIGHTNESS_MODE_BUTTON_Pin) == 0){
+			  if(HAL_GPIO_ReadPin(BRIGHTNESS_MODE_BUTTON_GPIO_Port, BRIGHTNESS_MODE_BUTTON_Pin) == 0) {
  80016ec:	f44f 6100 	mov.w	r1, #2048	@ 0x800
  80016f0:	4828      	ldr	r0, [pc, #160]	@ (8001794 <main+0x29c>)
  80016f2:	f002 f88f 	bl	8003814 <HAL_GPIO_ReadPin>
@@ -3553,7 +3544,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
  8001bf8:	4603      	mov	r3, r0
  8001bfa:	81fb      	strh	r3, [r7, #14]
 
-
+			// Tinh toan middle point tu 32 sample dau tien
 			if ( middle_point_index > 0){
  8001bfc:	4b1f      	ldr	r3, [pc, #124]	@ (8001c7c <HAL_ADC_ConvCpltCallback+0x9c>)
  8001bfe:	f9b3 3000 	ldrsh.w	r3, [r3]
@@ -3600,8 +3591,9 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
  8001c4a:	801a      	strh	r2, [r3, #0]
  8001c4c:	e003      	b.n	8001c56 <HAL_ADC_ConvCpltCallback+0x76>
 			}
-			else{
 
+			else{
+			// Ghi sample vao fftBufIn
 				record_sample_and_maybe_runFFT(raw);
  8001c4e:	89fb      	ldrh	r3, [r7, #14]
  8001c50:	4618      	mov	r0, r3
@@ -3621,7 +3613,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
  8001c68:	4b06      	ldr	r3, [pc, #24]	@ (8001c84 <HAL_ADC_ConvCpltCallback+0xa4>)
  8001c6a:	801a      	strh	r2, [r3, #0]
 
-	        // process “raw” or store into buffer or set a flag, etc.
+
 	    }
 
 }
