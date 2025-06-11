@@ -157,11 +157,11 @@ void Set_LED (int LEDnum, int Red, int Green, int Blue)
 	LED_Data[LEDnum][3] = Blue;
 }
 
-void Set_Brightness (int brightness)  // 0–NORMAL_BRIGHTNESS
+void Set_Brightness (int brightness)
 {
 #if USE_BRIGHTNESS
-    if (brightness > NORMAL_BRIGHTNESS) brightness = NORMAL_BRIGHTNESS;
-    float scale = brightness / (float)NORMAL_BRIGHTNESS;
+    if (brightness > MAX_BRIGHTNESS) brightness = MAX_BRIGHTNESS;
+    float scale = brightness / (float)MAX_BRIGHTNESS;
 
     for (int i = 0; i < MAX_LED; i++)
     {
