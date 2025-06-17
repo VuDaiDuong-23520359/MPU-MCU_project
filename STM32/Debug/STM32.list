@@ -41,9 +41,9 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  18 .debug_line   000102fb  00000000  00000000  00052527  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .debug_str    000d93b9  00000000  00000000  00062822  2**0
+ 19 .debug_str    000d93bb  00000000  00000000  00062822  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 20 .comment      000000b3  00000000  00000000  0013bbdb  2**0
+ 20 .comment      000000b3  00000000  00000000  0013bbdd  2**0
                   CONTENTS, READONLY
  21 .debug_frame  000042b4  00000000  00000000  0013bc90  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
@@ -678,9 +678,9 @@ void Set_Brightness (int brightness)
 #if USE_BRIGHTNESS
     if (brightness > MAX_BRIGHTNESS) brightness = MAX_BRIGHTNESS;
  8000778:	687b      	ldr	r3, [r7, #4]
- 800077a:	2b2d      	cmp	r3, #45	@ 0x2d
+ 800077a:	2bff      	cmp	r3, #255	@ 0xff
  800077c:	dd01      	ble.n	8000782 <Set_Brightness+0x12>
- 800077e:	232d      	movs	r3, #45	@ 0x2d
+ 800077e:	23ff      	movs	r3, #255	@ 0xff
  8000780:	607b      	str	r3, [r7, #4]
     float scale = brightness / (float)MAX_BRIGHTNESS;
  8000782:	687b      	ldr	r3, [r7, #4]
@@ -781,7 +781,7 @@ void Set_Brightness (int brightness)
  8000858:	f85d 7b04 	ldr.w	r7, [sp], #4
  800085c:	4770      	bx	lr
  800085e:	bf00      	nop
- 8000860:	42340000 	.word	0x42340000
+ 8000860:	437f0000 	.word	0x437f0000
  8000864:	200001c8 	.word	0x200001c8
  8000868:	200002a0 	.word	0x200002a0
 
@@ -1157,7 +1157,7 @@ void Turn_off_all_at_once(void){
  8000b36:	2000      	movs	r0, #0
  8000b38:	f7ff ffd6 	bl	8000ae8 <Set_LEDs_color_at_once>
 	Set_Brightness(NORMAL_BRIGHTNESS);
- 8000b3c:	2019      	movs	r0, #25
+ 8000b3c:	2080      	movs	r0, #128	@ 0x80
  8000b3e:	f7ff fe17 	bl	8000770 <Set_Brightness>
 	WS2812_Send();
  8000b42:	f7ff fe93 	bl	800086c <WS2812_Send>
@@ -2791,7 +2791,7 @@ int main(void)
  8001794:	20000000 	.word	0x20000000
  8001798:	40021000 	.word	0x40021000
  800179c:	42c80000 	.word	0x42c80000
- 80017a0:	42340000 	.word	0x42340000
+ 80017a0:	437f0000 	.word	0x437f0000
  80017a4:	66666667 	.word	0x66666667
 
 080017a8 <SystemClock_Config>:

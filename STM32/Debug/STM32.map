@@ -4579,29 +4579,29 @@ LOAD D:/E/1subject/HK4/VXL_VDK/doan/STM32CubeIDE_1.18.0/STM32CubeIDE/plugins/com
  .debug_line    0x0000fbe9       0x98 D:\E\1subject\HK4\VXL_VDK\doan\MPU-MCU_project\STM32\Lib\libarm_cortexM4lf_math.a(arm_bitreversal2.o)
  .debug_line    0x0000fc81      0x67a D:\E\1subject\HK4\VXL_VDK\doan\MPU-MCU_project\STM32\Lib\libarm_cortexM4lf_math.a(arm_cfft_radix8_f32.o)
 
-.debug_str      0x00000000    0xd93b9
- .debug_str     0x00000000    0xd93b9 ./Core/Src/main.o
-                              0xd5123 (size before relaxing)
- .debug_str     0x000d93b9    0xcf4a9 ./Core/Src/stm32f4xx_hal_msp.o
- .debug_str     0x000d93b9    0xcee07 ./Core/Src/stm32f4xx_it.o
- .debug_str     0x000d93b9     0x99df ./Core/Src/syscalls.o
- .debug_str     0x000d93b9     0x777d ./Core/Src/sysmem.o
- .debug_str     0x000d93b9    0xce738 ./Core/Src/system_stm32f4xx.o
- .debug_str     0x000d93b9       0x7f ./Core/Startup/startup_stm32f407vetx.o
- .debug_str     0x000d93b9    0xcf2bc ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.o
- .debug_str     0x000d93b9    0xced25 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc.o
- .debug_str     0x000d93b9    0xced79 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc_ex.o
- .debug_str     0x000d93b9    0xcf038 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.o
- .debug_str     0x000d93b9    0xceb52 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.o
- .debug_str     0x000d93b9    0xce8b3 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.o
- .debug_str     0x000d93b9    0xceb6c ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.o
- .debug_str     0x000d93b9    0xcfac2 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.o
- .debug_str     0x000d93b9    0xcf2ce ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.o
- .debug_str     0x000d93b9      0x517 D:\E\1subject\HK4\VXL_VDK\doan\MPU-MCU_project\STM32\Lib\libarm_cortexM4lf_math.a(arm_rfft_fast_init_f32.o)
- .debug_str     0x000d93b9      0x2f4 D:\E\1subject\HK4\VXL_VDK\doan\MPU-MCU_project\STM32\Lib\libarm_cortexM4lf_math.a(arm_rfft_fast_f32.o)
- .debug_str     0x000d93b9      0x35f D:\E\1subject\HK4\VXL_VDK\doan\MPU-MCU_project\STM32\Lib\libarm_cortexM4lf_math.a(arm_cfft_f32.o)
- .debug_str     0x000d93b9      0x704 D:\E\1subject\HK4\VXL_VDK\doan\MPU-MCU_project\STM32\Lib\libarm_cortexM4lf_math.a(arm_common_tables.o)
- .debug_str     0x000d93b9      0x256 D:\E\1subject\HK4\VXL_VDK\doan\MPU-MCU_project\STM32\Lib\libarm_cortexM4lf_math.a(arm_cfft_radix8_f32.o)
+.debug_str      0x00000000    0xd93bb
+ .debug_str     0x00000000    0xd93bb ./Core/Src/main.o
+                              0xd5125 (size before relaxing)
+ .debug_str     0x000d93bb    0xcf4a9 ./Core/Src/stm32f4xx_hal_msp.o
+ .debug_str     0x000d93bb    0xcee07 ./Core/Src/stm32f4xx_it.o
+ .debug_str     0x000d93bb     0x99df ./Core/Src/syscalls.o
+ .debug_str     0x000d93bb     0x777d ./Core/Src/sysmem.o
+ .debug_str     0x000d93bb    0xce738 ./Core/Src/system_stm32f4xx.o
+ .debug_str     0x000d93bb       0x7f ./Core/Startup/startup_stm32f407vetx.o
+ .debug_str     0x000d93bb    0xcf2bc ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.o
+ .debug_str     0x000d93bb    0xced25 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc.o
+ .debug_str     0x000d93bb    0xced79 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc_ex.o
+ .debug_str     0x000d93bb    0xcf038 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.o
+ .debug_str     0x000d93bb    0xceb52 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.o
+ .debug_str     0x000d93bb    0xce8b3 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.o
+ .debug_str     0x000d93bb    0xceb6c ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.o
+ .debug_str     0x000d93bb    0xcfac2 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.o
+ .debug_str     0x000d93bb    0xcf2ce ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.o
+ .debug_str     0x000d93bb      0x517 D:\E\1subject\HK4\VXL_VDK\doan\MPU-MCU_project\STM32\Lib\libarm_cortexM4lf_math.a(arm_rfft_fast_init_f32.o)
+ .debug_str     0x000d93bb      0x2f4 D:\E\1subject\HK4\VXL_VDK\doan\MPU-MCU_project\STM32\Lib\libarm_cortexM4lf_math.a(arm_rfft_fast_f32.o)
+ .debug_str     0x000d93bb      0x35f D:\E\1subject\HK4\VXL_VDK\doan\MPU-MCU_project\STM32\Lib\libarm_cortexM4lf_math.a(arm_cfft_f32.o)
+ .debug_str     0x000d93bb      0x704 D:\E\1subject\HK4\VXL_VDK\doan\MPU-MCU_project\STM32\Lib\libarm_cortexM4lf_math.a(arm_common_tables.o)
+ .debug_str     0x000d93bb      0x256 D:\E\1subject\HK4\VXL_VDK\doan\MPU-MCU_project\STM32\Lib\libarm_cortexM4lf_math.a(arm_cfft_radix8_f32.o)
 
 .comment        0x00000000       0xb3
  .comment       0x00000000       0xb3 ./Core/Src/main.o
